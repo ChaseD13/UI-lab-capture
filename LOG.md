@@ -7,3 +7,8 @@
 
 ### 5/30
 - Installed Anaconda
+  - Imported tkinter and labjack 
+- **Labjack** is reading voltage that is being sent from an Arduino board
+- *Suggestion:* Be able to adjust the scale of the reads from the labjack 
+- *Idea:* Be able to add more inputs via the GUI 
+
