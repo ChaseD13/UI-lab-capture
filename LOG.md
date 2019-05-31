@@ -14,4 +14,6 @@
 - Added an entry field to the GUI
 
 ### 5/31
--
+- Added a Active Directory/Settings page that is prompted on open
+- Added graph to track the incoming analog input
+- Changed the entry field to a slider to increase/decrease the scan Hz
