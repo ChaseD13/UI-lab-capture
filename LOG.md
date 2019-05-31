@@ -11,4 +11,7 @@
 - **Labjack** is reading voltage that is being sent from an Arduino board
 - *Suggestion:* Be able to adjust the scale of the reads from the labjack 
 - *Idea:* Be able to add more inputs via the GUI 
+- Added an entry field to the GUI
 
+### 5/31
+-
