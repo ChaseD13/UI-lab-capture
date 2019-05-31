@@ -7,6 +7,8 @@ import matplotlib.figure as figure
 import matplotlib.animation as animation
 import matplotlib.dates as mdates
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import numpy as np
+import PySpin
 
 
 #Add funtions purpose here....
@@ -215,7 +217,6 @@ class UILabCapture():
         # Format timestamps to be more readable
         ax1.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
         self.fig.autofmt_xdate()
-
 
 
 def main():
