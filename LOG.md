@@ -17,3 +17,4 @@
 - Added a Active Directory/Settings page that is prompted on open
 - Added graph to track the incoming analog input
 - Changed the entry field to a slider to increase/decrease the scan Hz
+- Installed PySpin using the Spinnaker SDK
