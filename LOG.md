@@ -22,3 +22,4 @@
 ### 6/3
 - Added multiple AIN inputs for all eight ports
 - Edited the functionality of the slider. It now works in Hz 
+- Added File I/O to store data to the location of the AD set by the user
