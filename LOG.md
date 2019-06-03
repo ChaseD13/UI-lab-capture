@@ -18,3 +18,6 @@
 - Added graph to track the incoming analog input
 - Changed the entry field to a slider to increase/decrease the scan Hz
 - Installed PySpin using the Spinnaker SDK
+
+### 6/3
+- Added multiple AIN inputs for all eight ports
