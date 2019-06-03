@@ -12,8 +12,6 @@ import PySpin
 import os
 
 
-NumChannels = 1
-Resolution = 3
 # MAX_REQUESTS is the number of packets to be read.
 MAX_REQUESTS = 75
 # SCAN_FREQUENCY is the scan frequency of stream mode in Hz
@@ -36,7 +34,8 @@ class SettingsWindow():
         self.root.title("Active Directory and Other Settings")
 
         #width x height + x_offset + y_offset:
-        self.root.geometry("1920x1080+0+0") 
+        self.root.geometry("1000x1000+0+0")
+        self.root.state('zoomed')
 
     #Variables
         self.ad_var = tk.StringVar() #Holds the active directory string.
@@ -98,6 +97,20 @@ class UILabCapture():
     def build_window(self):
         #Initialize a window
         self.root = tk.Tk()
+        self.camera_frame = tk.Frame(self.root)
+        self.camera_frame.grid(row = 0, column = 0, padx =10, pady = 10)
+        self.camera_frame.grid_rowconfigure(0, weight = 1)
+        self.camera_frame.grid_columnconfigure(0, weight = 1)
+
+        self.labjack_values = tk.Frame(self.root)
+        self.labjack_values.grid(row = 1, column = 0, padx = 10, pady = 10)
+        self.labjack_values.grid_rowconfigure(0, weight = 1)
+        self.labjack_values.grid_columnconfigure(0, weight = 1)
+
+        self.scrolling_graph = tk.Frame(self.root)
+        self.scrolling_graph.grid(row = 1, column = 1, padx= 10, pady = 10)
+        self.scrolling_graph.grid_rowconfigure(0, weight = 1)
+        self.scrolling_graph.grid_columnconfigure(0, weight = 1)
 
 
         #Style
@@ -105,7 +118,8 @@ class UILabCapture():
         #Change the title of the window
         self.root.title("UI Lab Capture")
         # width x height + x_offset + y_offset:
-        self.root.geometry("1920x1080+0+0") 
+        self.root.geometry("1000x1000+0+0") 
+        self.root.state('zoomed')
 
 
         #Variables
@@ -119,57 +133,57 @@ class UILabCapture():
         self.var6 = tk.IntVar() #Voltage being read from the labjack at FIO6
         self.var7 = tk.IntVar() #Voltage being read from the labjack at FIO7
 
-        self.update_interval = 400 # Time (ms) between polling/animation updates
-        self.max_elements = 100    # Maximum number of elements to store in plot lists
+        self.update_interval = 100 # Time (ms) between polling/animation updates
+        self.max_elements = 1000    # Maximum number of elements to store in plot lists
 
 
         #Labels
 
         # Label that is filling the space where the camera will be
-        self.cameras = tk.Label(self.root, text = "Space for Cameras", bg = "orange", height = 20)
-        self.cameras.grid(row = 0, column = 0, rowspan = 10, columnspan = 10)
+        self.cameras = tk.Label(self.camera_frame, text = "Space for Cameras", bg = "orange", height = 20)
+        self.cameras.grid(row = 0, column = 0)
 
         #Labels for the FIO 0-7 ports on the labjacks
-        tk.Label(self.root, text = "AIN0: ").grid(row = 11, column = 0)
-        tk.Label(self.root, text = "AIN1: ").grid(row = 12, column = 0)
-        tk.Label(self.root, text = "AIN2: ").grid(row = 13, column = 0)
-        tk.Label(self.root, text = "AIN3: ").grid(row = 14, column = 0)
-        tk.Label(self.root, text = "AIN4: ").grid(row = 11, column = 2)
-        tk.Label(self.root, text = "AIN5: ").grid(row = 12, column = 2)
-        tk.Label(self.root, text = "AIN6: ").grid(row = 13, column = 2)
-        tk.Label(self.root, text = "AIN7: ").grid(row = 14, column = 2)
+        tk.Label(self.labjack_values, text = "AIN0: ").grid(row = 0, column = 0)
+        tk.Label(self.labjack_values, text = "AIN1: ").grid(row = 0, column = 1)
+        tk.Label(self.labjack_values, text = "AIN2: ").grid(row = 0, column = 2)
+        tk.Label(self.labjack_values, text = "AIN3: ").grid(row = 0, column = 3)
+        tk.Label(self.labjack_values, text = "AIN4: ").grid(row = 0, column = 4)
+        tk.Label(self.labjack_values, text = "AIN5: ").grid(row = 0, column = 5)
+        tk.Label(self.labjack_values, text = "AIN6: ").grid(row = 0, column = 6)
+        tk.Label(self.labjack_values, text = "AIN7: ").grid(row = 0, column = 7)
 
-        self.ain_zero = tk.Label(self.root, textvariable = self.var)
-        self.ain_zero.grid(row = 11, column = 1)
+        self.ain_zero = tk.Label(self.labjack_values, textvariable = self.var)
+        self.ain_zero.grid(row = 1, column = 0)
 
-        self.ain_one = tk.Label(self.root, textvariable = self.var1)
-        self.ain_one.grid(row = 12, column = 1)
+        self.ain_one = tk.Label(self.labjack_values, textvariable = self.var1)
+        self.ain_one.grid(row = 1, column = 1)
 
-        self.ain_two = tk.Label(self.root, textvariable = self.var2)
-        self.ain_two.grid(row = 13, column = 1)
+        self.ain_two = tk.Label(self.labjack_values, textvariable = self.var2)
+        self.ain_two.grid(row = 1, column = 2)
 
-        self.ain_three = tk.Label(self.root, textvariable = self.var3)
-        self.ain_three.grid(row = 14, column = 1)
+        self.ain_three = tk.Label(self.labjack_values, textvariable = self.var3)
+        self.ain_three.grid(row = 1, column = 3)
 
-        self.ain_four = tk.Label(self.root, textvariable = self.var4)
-        self.ain_four.grid(row = 11, column = 3)
+        self.ain_four = tk.Label(self.labjack_values, textvariable = self.var4)
+        self.ain_four.grid(row = 1, column = 4)
 
-        self.ain_five = tk.Label(self.root, textvariable = self.var5)
-        self.ain_five.grid(row = 12, column = 3)
+        self.ain_five = tk.Label(self.labjack_values, textvariable = self.var5)
+        self.ain_five.grid(row = 1, column = 5)
 
-        self.ain_six = tk.Label(self.root, textvariable = self.var6)
-        self.ain_six.grid(row = 13, column = 3)
+        self.ain_six = tk.Label(self.labjack_values, textvariable = self.var6)
+        self.ain_six.grid(row = 1, column = 6)
 
-        self.ain_seven = tk.Label(self.root, textvariable = self.var7)
-        self.ain_seven.grid(row = 14, column = 3)
+        self.ain_seven = tk.Label(self.labjack_values, textvariable = self.var7)
+        self.ain_seven.grid(row = 1, column = 7)
 
 
 
         #Scales
         #Scale for users to adjust the scan speed in Hz
-        self.scan_scale = tk.Scale(self.root, from_=0.1, to=500, orient = tk.HORIZONTAL, label = "Scan rate (Hz)", length = 500)
-        self.scan_scale.grid(row = 15, column = 0)
-        self.scan_scale.set(SCAN_FREQUENCY)
+        self.scan_scale = tk.Scale(self.labjack_values, from_=0.1, to=10, orient = tk.HORIZONTAL, label = "Scan rate (Hz)", length = 500, resolution = .2)
+        self.scan_scale.grid(row = 3, column = 0, columnspan = 8)
+        self.scan_scale.set(1)
 
         #Figure
         #Create Matplotlib figure and a set of axes to draw our plot on
@@ -183,10 +197,10 @@ class UILabCapture():
         self.hz = tk.DoubleVar()
 
         #Create a Tkinter widget out of that figure
-        self.canvas = FigureCanvasTkAgg(self.fig, master = self.root)
+        self.canvas = FigureCanvasTkAgg(self.fig, master = self.scrolling_graph)
         self.canvas_plot = self.canvas.get_tk_widget()
 
-        self.canvas_plot.grid(row = 11, column = 10, rowspan = 5, columnspan = 4, padx = 10)
+        self.canvas_plot.grid(row = 0, column = 0)
 
         # Periodically call FuncAnimation() to handle the polling and updating of the graph
         self.fargs = (self.ax1, self.xs, self.volts, self.hz)
@@ -238,6 +252,8 @@ class UILabCapture():
         self.var5.set(round(self.d.getAIN(5), 3)) #Get and set voltage for port 5
         self.var6.set(round(self.d.getAIN(6), 3)) #Get and set voltage for port 6
         self.var7.set(round(self.d.getAIN(7), 3)) #Get and set voltage for port 7
+
+        self.ani = animation.FuncAnimation(  self.fig, self.animate, fargs=self.fargs, interval=self.update_interval)
 
         self.root.update() #Update the window
         self.root.after(self.update_interval, self.update_voltage) #Schedule for this function to call itself agin after update_interval milliseconds
