@@ -97,6 +97,7 @@ class UILabCapture():
     def build_window(self):
         #Initialize a window
         self.root = tk.Tk()
+        
         self.camera_frame = tk.Frame(self.root)
         self.camera_frame.grid(row = 0, column = 0, padx =10, pady = 10)
         self.camera_frame.grid_rowconfigure(0, weight = 1)
