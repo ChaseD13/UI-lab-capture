@@ -10,7 +10,13 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
 import PySpin
 import os
-
+try:
+    import Queue
+except ImportError:  # Python 3
+    import queue as Queue
+from copy import deepcopy
+import sys
+import traceback
 
 # MAX_REQUESTS is the number of packets to be read.
 MAX_REQUESTS = 75
@@ -220,13 +226,18 @@ class UILabCapture():
         #Call to initalize the labjack and its configuration 
         self.init_labjack() 
 
-        self.operate_cameras()
+
+        #Call to initialize cameras and to capture an image
+        #self.operate_cameras()
+
+        self.labjack_stream()
 
         #Call to the voltage test function to show the voltages being taken in by the labjack
         self.update_voltage()  
 
-        self.write_to_file()
 
+        #Start writing data to a file 
+        self.write_to_file()
 
 
         #Start the window
@@ -240,6 +251,7 @@ class UILabCapture():
             self.d = u3.U3() #Connect to labjack 
             self.d.getCalibrationData() #Calibration data will be used by functions that convert binary data to voltage/temperature and vice versa
             self.d.configIO(FIOAnalog= 255) #Set the FIO to read in analog; 255 sets all eight FIO ports to analog
+            self.d.streamConfig(NumChannels=8, PChannels=[0, 1, 2, 3, 4, 5, 6, 7], NChannels=[31, 31, 31, 31, 31, 31, 31, 31], Resolution=3, ScanFrequency=SCAN_FREQUENCY)
 
         except:
             LabJackPython.Close() #Close all UD driver opened devices in the process
@@ -379,6 +391,32 @@ class UILabCapture():
         del self.cam_primary
         #del cam_secondary
         del self.cam_list
+
+    #Function that recives a stream of Amplitude from the Labjack at FIO 0-7
+    def labjack_stream(self):
+        dataCount = 0
+        try:
+            self.d.streamStart()
+            print("Started stream")
+
+            for r in self.d.streamData():
+                if r is not None:
+                    if dataCount >= MAX_REQUESTS:
+                        break
+
+                    # Comment out these prints and do something with r
+                    print("Average of %s AIN0, %s AIN1 readings: %s, %s" %
+                        (len(r["AIN0"]), len(r["AIN1"]), sum(r["AIN0"])/len(r["AIN0"]), sum(r["AIN1"])/len(r["AIN1"])))
+
+                    dataCount+=1
+
+            print(dataCount)
+            self.d.streamStop()
+            print("Stream stopped")
+        except:
+            print("Error")
+
+
 
 
 def main():
