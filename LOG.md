@@ -28,3 +28,5 @@
 ### 6/4
 - Added functionality to take a photo using one **FLIR Blackfly S** camera
 - Added structure to support the Primary/Secondary system for capturing video
+- Added the ability to access the amplitude from the labjack in a stream 
+- Added a Start/Stop experiment button for better control
