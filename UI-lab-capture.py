@@ -46,11 +46,15 @@ class SettingsWindow():
         self.volnum_var = tk.StringVar() #Holds the Vole number. Assigned by the user.
         self.volnum_var.set(1)
 
+        self.pcamera_var = tk.IntVar() #Holds the Vole number. Assigned by the user.
+        self.pcamera_var.set(19061331)
+
 
     #Labels for entry boxes
         tk.Label(self.root, text = "Date: ",).grid(row = 0, column = 0, padx = 10, pady = 10)
         tk.Label(self.root, text = "Vol Number: ").grid(row = 1, column = 0, padx = 10, pady = 10)
         tk.Label(self.root, text = "Active Directory: ").grid(row = 2, column = 0, padx = 10, pady = 10)
+        tk.Label(self. root, text = "Primary Camera Serial Number: ").grid(row = 3, column = 0, padx = 10, pady = 10) 
 
 
     #Entry boxes
@@ -63,7 +67,10 @@ class SettingsWindow():
         self.ad_slot = tk.Entry(self.root, textvariable = self.ad_var, justify = "left", width = 80) #Entry variable that displays the current AD as it is being filled in.
         self.ad_slot.grid(row = 2, column = 2, padx = 10, pady = 10)
 
-        tk.Button(self.root, text = "Submit", command = self.submit_ad).grid(row = 3, column = 0, padx = 20, pady = 10) #Button that when pressed closes the settings window
+        self.primary_slot = tk.Entry(self.root, textvariable = self.pcamera_var, justify = "left", width = 80) #Entry variable for setting the primary camera's serial number 
+        self.primary_slot.grid(row = 3, column = 2, padx = 10, pady = 10)
+
+        tk.Button(self.root, text = "Submit", command = self.submit_ad).grid(row = 4, column = 0, padx = 20, pady = 10) #Button that when pressed closes the settings window
 
     #Function Calls
 
@@ -90,10 +97,11 @@ class SettingsWindow():
 #Functions: init_labjack, update_voltage, build_window, animate
 class UILabCapture():
     #Initialization; Takes in an active directory path as a parameter
-    def __init__(self, active_directory):
+    def __init__(self, active_directory, primary_serial_number):
         self.filepath = active_directory #Active directory path is stored in a local varaible
-        self.update_interval = 100 # Time (ms) between polling/animation updates
-        self.max_elements = 500    # Maximum number of elements to store in plot lists
+        self.primary_sn = primary_serial_number #The serial number of the primary Blackfly S camera
+        self.update_interval = 100 #Time (ms) between polling/animation updates
+        self.max_elements = 500    #Maximum number of elements to store in plot lists
  
     #Builds the main GUI window 
     def build_window(self):
@@ -212,11 +220,13 @@ class UILabCapture():
         #Call to initalize the labjack and its configuration 
         self.init_labjack() 
 
+        self.operate_cameras()
 
         #Call to the voltage test function to show the voltages being taken in by the labjack
         self.update_voltage()  
 
         self.write_to_file()
+
 
 
         #Start the window
@@ -301,6 +311,76 @@ class UILabCapture():
             f.close()
 
 
+    #Produces an image in the current working directory: primary.png
+    #TODO: Add second camera to test functionality of the primary and secondary triggers.
+    def operate_cameras(self):
+        # Get system
+        self.system = PySpin.System.GetInstance()
+        # Get camera list
+        self.cam_list = self.system.GetCameras()
+        # Figure out which is primary and secondary
+        if self.cam_list.GetByIndex(0).TLDevice.DeviceSerialNumber() == str(self.primary_sn):
+            self.cam_primary = self.cam_list.GetByIndex(0)
+            # self.cam_secondary = self.cam_list.GetByIndex(1)
+        else:
+            self.cam_primary = self.cam_list.GetByIndex(1)
+            # self.cam_secondary = self.cam_list.GetByIndex(0)
+ 
+        # Initialize cameras
+        self.cam_primary.Init()
+        # self.cam_secondary.Init()
+
+        #retrieve GenICam nodemap
+        self.primary_nodemap = self.cam_primary.GetNodeMap()
+
+        
+
+        #Setpu the hardware triggers
+
+        # Set up primary camera trigger
+        self.cam_primary.LineSelector.SetValue(PySpin.LineSelector_Line2)
+        self.cam_primary.V3_3Enable.SetValue(True)
+
+        # Set up secondary camera trigger
+        '''
+        cam_secondary.TriggerMode.SetValue(PySpin.TriggerMode_Off)
+        cam_secondary.TriggerSource.SetValue(PySpin.TriggerSource_Line3)
+        cam_secondary.TriggerOverlap.SetValue(PySpin.TriggerOverlap_ReadOut)
+        cam_secondary.TriggerMode.SetValue(PySpin.TriggerMode_On)
+        '''
+
+        # Set acquisition mode
+        self.cam_primary.AcquisitionMode.SetValue(PySpin.AcquisitionMode_SingleFrame)
+        #cam_secondary.AcquisitionMode.SetValue(PySpin.AcquisitionMode_SingleFrame)
+
+        # Start acquisition; note that secondary camera has to be started first so 
+        # acquisition of primary camera triggers secondary camera.
+        #cam_secondary.BeginAcquisition()
+        self.cam_primary.BeginAcquisition()
+
+        # Acquire images
+        self.image_primary = self.cam_primary.GetNextImage()
+        #image_secondary = cam_secondary.GetNextImage()
+
+        # Save images
+        self.image_primary.Save('primary.png')
+        #image_secondary.Save('secondary.png')
+
+        # Stop acquisition
+        self.cam_primary.EndAcquisition()
+        #cam_secondary.EndAcquisition()
+
+        # De-initialize
+        self.cam_primary.DeInit()
+        #cam_secondary.DeInit()
+
+        # Clear references to images and cameras
+        del self.image_primary
+        #del image_secondary
+        del self.cam_primary
+        #del cam_secondary
+        del self.cam_list
+
 
 def main():
 
@@ -315,13 +395,14 @@ def main():
     startwindow.prompt_window()
     #Store the active directory set by the user into an easy to identify variable: ad
     ad = startwindow.ad_var.get()
+    psn = startwindow.pcamera_var.get()
 
 
     #Make a call to the UILabCapture class which contains functions for the main GUI window
     #app is a UILabCapture
     #properties: None
     #functions: init_labjack, update_voltage, build_window
-    app = UILabCapture(ad) 
+    app = UILabCapture(ad, psn) 
     #Call the build_window to create the main GUI window
     app.build_window()
 
