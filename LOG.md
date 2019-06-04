@@ -17,10 +17,14 @@
 - Added a Active Directory/Settings page that is prompted on open
 - Added graph to track the incoming analog input
 - Changed the entry field to a slider to increase/decrease the scan Hz
-- Installed PySpin using the Spinnaker SDK
+- Installed **PySpin** using the **Spinnaker SDK**
 
 ### 6/3
 - Added multiple AIN inputs for all eight ports
 - Edited the functionality of the slider. It now works in Hz 
 - Added File I/O to store data to the location of the AD set by the user
 - Added frames to the layout to try and make positioning elements easier
+
+### 6/4
+- Added functionality to take a photo using one **FLIR Blackfly S** camera
+- Added structure to support the Primary/Secondary system for capturing video
