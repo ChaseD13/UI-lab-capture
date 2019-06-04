@@ -101,7 +101,7 @@ class UILabCapture():
         self.filepath = active_directory #Active directory path is stored in a local varaible
         self.primary_sn = primary_serial_number #The serial number of the primary Blackfly S camera
         self.update_interval = 100 #Time (ms) between polling/animation updates
-        self.max_elements = 500    #Maximum number of elements to store in plot lists
+        self.max_elements = 20   #Maximum number of elements to store in plot lists
  
     #Builds the main GUI window 
     def build_window(self):
@@ -293,15 +293,15 @@ class UILabCapture():
         color = 'tab:red'
         ax1.clear()
         ax1.set_ylabel('Hz', color=color)
-        ax1.tick_params(axis='y', labelcolor=color)
+        ax1.tick_params(axis='Time', labelcolor=color)
         ax1.fill_between(xs, volts, 0, linewidth=2, color=color, alpha=0.3)
 
         # Format timestamps to be more readable
-        ax1.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        ax1.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S.%f"))
         self.fig.autofmt_xdate()
 
 
-    #
+    #Function to wrtie the data out to a directory
     def write_to_file(self):
         try:
             os.makedirs(os.path.dirname(self.filepath), exist_ok=True)
