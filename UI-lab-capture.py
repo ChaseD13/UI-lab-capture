@@ -333,9 +333,8 @@ class UILabCapture():
         #retrieve GenICam nodemap
         self.primary_nodemap = self.cam_primary.GetNodeMap()
 
-        
 
-        #Setpu the hardware triggers
+        #Setup the hardware triggers
 
         # Set up primary camera trigger
         self.cam_primary.LineSelector.SetValue(PySpin.LineSelector_Line2)
