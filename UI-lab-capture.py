@@ -21,7 +21,7 @@ import traceback
 # MAX_REQUESTS is the number of packets to be read.
 MAX_REQUESTS = 75
 # SCAN_FREQUENCY is the scan frequency of stream mode in Hz
-SCAN_FREQUENCY = 5000
+SCAN_FREQUENCY = 50000
 
 #Add funtions purpose here....
 #Properties: now, ad_var
@@ -43,7 +43,7 @@ class SettingsWindow():
         self.root.geometry("1000x1000+0+0")
         self.root.state('zoomed')
 
-    #Variables
+        #Variables
         self.ad_var = tk.StringVar() #Holds the active directory string.
 
         self.date_var = tk.StringVar() #Holds the date string
@@ -56,14 +56,14 @@ class SettingsWindow():
         self.pcamera_var.set(19061331)
 
 
-    #Labels for entry boxes
+        #Labels for entry boxes
         tk.Label(self.root, text = "Date: ",).grid(row = 0, column = 0, padx = 10, pady = 10)
         tk.Label(self.root, text = "Vol Number: ").grid(row = 1, column = 0, padx = 10, pady = 10)
         tk.Label(self.root, text = "Active Directory: ").grid(row = 2, column = 0, padx = 10, pady = 10)
         tk.Label(self. root, text = "Primary Camera Serial Number: ").grid(row = 3, column = 0, padx = 10, pady = 10) 
 
 
-    #Entry boxes
+        #Entry boxes
         self.date_slot = tk.Entry(self.root, textvariable = self.date_var, justify = "left", width = 80) #Entry variable for setting the date.
         self.date_slot.grid(row = 0, column = 2, padx = 10, pady = 10)
 
@@ -78,7 +78,7 @@ class SettingsWindow():
 
         tk.Button(self.root, text = "Submit", command = self.submit_ad).grid(row = 4, column = 0, padx = 20, pady = 10) #Button that when pressed closes the settings window
 
-    #Function Calls
+        #Function Calls
 
         self.update_window() #Call to update the window when the user types in new values into the entry fields.
 
@@ -86,7 +86,6 @@ class SettingsWindow():
         self.root.mainloop() 
 
     #Function that updates 
-    #TODO: Function causes errors after submit button is pushed
     def update_window(self):
         self.ad_var.set("C:/Users/Behavior Scoring/Desktop/UI-lab-capture/" + self.date_var.get() + "/" + self.volnum_var.get() + ".txt")
         self.after_event = self.root.after(5, self.update_window)
@@ -199,46 +198,9 @@ class UILabCapture():
         self.scan_scale.grid(row = 3, column = 0, columnspan = 8)
         self.scan_scale.set(1)
 
-        #Figure
-        #Create Matplotlib figure and a set of axes to draw our plot on
-        self.fig = figure.Figure(figsize = (6,6))
-        self.fig.subplots_adjust(left=0.1, right = 0.8)
-        self.ax1 = self.fig.add_subplot(1,1,1)
-
-        #Variables
-        self.xs = []
-        self.volts = []
-        self.hz = tk.DoubleVar()
-
-        #Create a Tkinter widget out of that figure
-        self.canvas = FigureCanvasTkAgg(self.fig, master = self.scrolling_graph)
-        self.canvas_plot = self.canvas.get_tk_widget()
-
-        self.canvas_plot.grid(row = 0, column = 0)
-
-        # Periodically call FuncAnimation() to handle the polling and updating of the graph
-        self.fargs = (self.ax1, self.xs, self.volts, self.hz)
-        self.ani = animation.FuncAnimation(  self.fig, self.animate, fargs=self.fargs, interval=100)
-
-
-        #Function Calls
-
-        #Call to initalize the labjack and its configuration 
-        self.init_labjack() 
-
-
-        #Call to initialize cameras and to capture an image
-        #self.operate_cameras()
-
-        self.labjack_stream()
-
-        #Call to the voltage test function to show the voltages being taken in by the labjack
-        self.update_voltage()  
-
-
-        #Start writing data to a file 
-        self.write_to_file()
-
+        #Button
+        tk.Button(self.labjack_values, text = "Start Experiment", command = self.start_gui).grid(row = 4, column = 0, padx = 20, pady = 10) 
+        tk.Button(self.labjack_values, text = "Stop Experiment", command = self.stop_gui).grid(row = 4, column = 1, padx = 20, pady = 10) 
 
         #Start the window
         self.root.mainloop() 
@@ -304,7 +266,7 @@ class UILabCapture():
         # Clear, format, and plot light values first (behind)
         color = 'tab:red'
         ax1.clear()
-        ax1.set_ylabel('Hz', color=color)
+        ax1.set_ylabel('Amplitude', color=color)
         ax1.tick_params(axis='Time', labelcolor=color)
         ax1.fill_between(xs, volts, 0, linewidth=2, color=color, alpha=0.3)
 
@@ -392,12 +354,12 @@ class UILabCapture():
         #del cam_secondary
         del self.cam_list
 
+
     #Function that recives a stream of Amplitude from the Labjack at FIO 0-7
     def labjack_stream(self):
         dataCount = 0
         try:
             self.d.streamStart()
-            print("Started stream")
 
             for r in self.d.streamData():
                 if r is not None:
@@ -405,18 +367,73 @@ class UILabCapture():
                         break
 
                     # Comment out these prints and do something with r
-                    print("Average of %s AIN0, %s AIN1 readings: %s, %s" %
-                        (len(r["AIN0"]), len(r["AIN1"]), sum(r["AIN0"])/len(r["AIN0"]), sum(r["AIN1"])/len(r["AIN1"])))
+                    print("Average of %s AIN0, %s AIN1, %s AIN2, %s AIN3, %s AIN4, %s AIN5, %s AIN6, %s AIN7 readings: %s, %s, %s, %s, %s, %s, %s, %s" %
+                        (len(r["AIN0"]), len(r["AIN1"]), len(r["AIN2"]), len(r["AIN3"]), len(r["AIN4"]), len(r["AIN5"]), len(r["AIN6"]), len(r["AIN7"])
+                        , sum(r["AIN0"])/len(r["AIN0"]), sum(r["AIN1"])/len(r["AIN1"]), sum(r["AIN2"])/len(r["AIN2"]), sum(r["AIN3"])/len(r["AIN3"])
+                        , sum(r["AIN4"])/len(r["AIN4"]), sum(r["AIN5"])/len(r["AIN5"]), sum(r["AIN6"])/len(r["AIN6"]), sum(r["AIN7"])/len(r["AIN7"])))
 
                     dataCount+=1
 
             print(dataCount)
             self.d.streamStop()
-            print("Stream stopped")
+
         except:
             print("Error")
 
 
+    #A function to handle all updating of values and functions
+    def start_gui(self):
+        #updates every second
+
+        #update Label values AIN 0-7
+
+        #update the graph 
+        #graph x axis is the voltage readings
+        #graph y axis should be determined by the Hz 
+
+        #Call to initalize the labjack and its configuration 
+        self.init_labjack() 
+
+
+        #Call to initialize cameras and to capture an image
+        #self.operate_cameras()
+
+        #self.labjack_stream()
+        
+        #Call to the voltage test function to show the voltages being taken in by the labjack
+        self.update_voltage() 
+
+        self.start_figure() 
+
+        #Start writing data to a file 
+        self.write_to_file()
+
+
+    #A function to stop the current experiment and revert the GUI back to a clean state
+    def stop_gui(self):
+        print("Stop revert to clean state")
+
+
+    #Helper function to create a graph and begin animation on it
+    def start_figure(self):
+        #Create Matplotlib figure and a set of axes to draw our plot on
+        self.fig = figure.Figure(figsize = (5,4))
+        self.ax1 = self.fig.add_subplot(1,1,1)
+
+        #Variables
+        self.xs = []
+        self.volts = []
+        self.hz = tk.DoubleVar()
+
+        #Create a Tkinter widget out of that figure
+        self.canvas = FigureCanvasTkAgg(self.fig, master = self.scrolling_graph)
+        self.canvas_plot = self.canvas.get_tk_widget()
+
+        self.canvas_plot.grid(row = 0, column = 0, rowspan = 5, columnspan = 4)
+
+        # Periodically call FuncAnimation() to handle the polling and updating of the graph
+        self.fargs = (self.ax1, self.xs, self.volts, self.hz)
+        self.ani = animation.FuncAnimation(  self.fig, self.animate, fargs=self.fargs, interval=100)
 
 
 def main():
