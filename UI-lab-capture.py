@@ -48,22 +48,22 @@ class SettingsWindow():
 
 
     #Labels for entry boxes
-        tk.Label(self.root, text = "Date: ",).grid(row = 0, column = 0)
-        tk.Label(self.root, text = "Vol Number: ").grid(row = 1, column = 0)
-        tk.Label(self.root, text = "Active Directory: ").grid(row = 2, column = 0)
+        tk.Label(self.root, text = "Date: ",).grid(row = 0, column = 0, padx = 10, pady = 10)
+        tk.Label(self.root, text = "Vol Number: ").grid(row = 1, column = 0, padx = 10, pady = 10)
+        tk.Label(self.root, text = "Active Directory: ").grid(row = 2, column = 0, padx = 10, pady = 10)
 
 
     #Entry boxes
         self.date_slot = tk.Entry(self.root, textvariable = self.date_var, justify = "left", width = 80) #Entry variable for setting the date.
-        self.date_slot.grid(row = 0, column = 2)
+        self.date_slot.grid(row = 0, column = 2, padx = 10, pady = 10)
 
         self.volnum_slot = tk.Entry(self.root, textvariable = self.volnum_var, justify = "left", width = 80) #Entry variable for setting the vole number. 
-        self.volnum_slot.grid(row = 1, column = 2)
+        self.volnum_slot.grid(row = 1, column = 2, padx = 10, pady = 10)
 
         self.ad_slot = tk.Entry(self.root, textvariable = self.ad_var, justify = "left", width = 80) #Entry variable that displays the current AD as it is being filled in.
-        self.ad_slot.grid(row = 2, column = 2)
+        self.ad_slot.grid(row = 2, column = 2, padx = 10, pady = 10)
 
-        tk.Button(self.root, text = "Submit", command = self.submit_ad).grid(row = 3, column = 0) #Button that when pressed closes the settings window
+        tk.Button(self.root, text = "Submit", command = self.submit_ad).grid(row = 3, column = 0, padx = 20, pady = 10) #Button that when pressed closes the settings window
 
     #Function Calls
 
@@ -92,6 +92,8 @@ class UILabCapture():
     #Initialization; Takes in an active directory path as a parameter
     def __init__(self, active_directory):
         self.filepath = active_directory #Active directory path is stored in a local varaible
+        self.update_interval = 100 # Time (ms) between polling/animation updates
+        self.max_elements = 500    # Maximum number of elements to store in plot lists
  
     #Builds the main GUI window 
     def build_window(self):
@@ -133,9 +135,6 @@ class UILabCapture():
         self.var5 = tk.IntVar() #Voltage being read from the labjack at FIO5
         self.var6 = tk.IntVar() #Voltage being read from the labjack at FIO6
         self.var7 = tk.IntVar() #Voltage being read from the labjack at FIO7
-
-        self.update_interval = 100 # Time (ms) between polling/animation updates
-        self.max_elements = 1000    # Maximum number of elements to store in plot lists
 
 
         #Labels
@@ -182,7 +181,7 @@ class UILabCapture():
 
         #Scales
         #Scale for users to adjust the scan speed in Hz
-        self.scan_scale = tk.Scale(self.labjack_values, from_=0.1, to=10, orient = tk.HORIZONTAL, label = "Scan rate (Hz)", length = 500, resolution = .2)
+        self.scan_scale = tk.Scale(self.labjack_values, from_=0.1, to=100, orient = tk.HORIZONTAL, label = "Scan rate (Hz)", length = 500, resolution = 1)
         self.scan_scale.grid(row = 3, column = 0, columnspan = 8)
         self.scan_scale.set(1)
 
@@ -205,7 +204,7 @@ class UILabCapture():
 
         # Periodically call FuncAnimation() to handle the polling and updating of the graph
         self.fargs = (self.ax1, self.xs, self.volts, self.hz)
-        self.ani = animation.FuncAnimation(  self.fig, self.animate, fargs=self.fargs, interval=self.update_interval)
+        self.ani = animation.FuncAnimation(  self.fig, self.animate, fargs=self.fargs, interval=100)
 
 
         #Function Calls
@@ -254,7 +253,7 @@ class UILabCapture():
         self.var6.set(round(self.d.getAIN(6), 3)) #Get and set voltage for port 6
         self.var7.set(round(self.d.getAIN(7), 3)) #Get and set voltage for port 7
 
-        self.ani = animation.FuncAnimation(  self.fig, self.animate, fargs=self.fargs, interval=self.update_interval)
+        # self.ani = animation.FuncAnimation(self.fig, self.animate, fargs=self.fargs, interval=self.update_interval)
 
         self.root.update() #Update the window
         self.root.after(self.update_interval, self.update_voltage) #Schedule for this function to call itself agin after update_interval milliseconds
