@@ -5,6 +5,7 @@ import tkinter as tk
 import datetime  #now.strftime("%Y-%m-%d %H:%M")
 import matplotlib.figure as figure
 import matplotlib.animation as animation
+import matplotlib.pylab as plt
 import matplotlib.dates as mdates
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
@@ -21,7 +22,7 @@ import traceback
 # MAX_REQUESTS is the number of packets to be read.
 MAX_REQUESTS = 75
 # SCAN_FREQUENCY is the scan frequency of stream mode in Hz
-SCAN_FREQUENCY = 50000
+SCAN_FREQUENCY = 5000
 
 #Add funtions purpose here....
 #Properties: now, ad_var
@@ -216,11 +217,10 @@ class UILabCapture():
             self.d = u3.U3() #Connect to labjack 
             self.d.getCalibrationData() #Calibration data will be used by functions that convert binary data to voltage/temperature and vice versa
             self.d.configIO(FIOAnalog= 255) #Set the FIO to read in analog; 255 sets all eight FIO ports to analog
-            self.d.streamConfig(NumChannels=8, PChannels=[0, 1, 2, 3, 4, 5, 6, 7], NChannels=[31, 31, 31, 31, 31, 31, 31, 31], Resolution=3, ScanFrequency=SCAN_FREQUENCY)
-
+            self.d.streamConfig(NumChannels=8, PChannels=[0, 1, 2, 3, 4, 5, 6, 7], NChannels=[31, 31, 31, 31, 31, 31, 31, 31], Resolution=3, ScanFrequency=self.scan_hz.get())
+            
         except:
             LabJackPython.Close() #Close all UD driver opened devices in the process
-            self.init_labjack()
 
 
     #Update voltage is used to constantly monitor the AIN0 port to see what voltage the port is reciving
@@ -249,7 +249,6 @@ class UILabCapture():
 
     # This function is called periodically from FuncAnimation
     def animate(self, i, ax1, xs, volts, hz):
-
         # Update data to display temperature and light values
         new_volts = round(self.d.getAIN(0), 3)
 
@@ -264,8 +263,8 @@ class UILabCapture():
         volts.append(new_volts)
 
         # Limit lists to a set number of elements
-        xs = xs[-self.max_elements:]
-        volts = volts[-self.max_elements:]
+        xs = xs[-self.max_samples:]
+        volts = volts[-self.max_samples:]
 
         # Clear, format, and plot light values first (behind)
         color = 'tab:red'
@@ -361,22 +360,31 @@ class UILabCapture():
 
     #Function that recives a stream of Amplitude from the Labjack at FIO 0-7
     def labjack_stream(self):
-        dataCount = 0
+        data = []
+        currentSamples = 0
+        tbs = 1.0/self.scan_hz #Time between scans in seconds
         try:
             self.d.streamStart()
-
+            curTime = time.time() #Get a tmestamp for our start time
             for r in self.d.streamData():
+
+
                 if r is not None:
-                    if dataCount >= MAX_REQUESTS:
+                    data = r['AIN0']
+                    times = [curTime + t* tbs for t in (range(len(data)))]
+                    curTime = times[-1]+ tbs #The current time for our next set of stream scans.
+                    if currentSamples >= MAX_REQUESTS:
                         break
 
                     # Comment out these prints and do something with r
-                    print("Average of %s AIN0, %s AIN1, %s AIN2, %s AIN3, %s AIN4, %s AIN5, %s AIN6, %s AIN7 readings: %s, %s, %s, %s, %s, %s, %s, %s" %
-                        (len(r["AIN0"]), len(r["AIN1"]), len(r["AIN2"]), len(r["AIN3"]), len(r["AIN4"]), len(r["AIN5"]), len(r["AIN6"]), len(r["AIN7"])
-                        , sum(r["AIN0"])/len(r["AIN0"]), sum(r["AIN1"])/len(r["AIN1"]), sum(r["AIN2"])/len(r["AIN2"]), sum(r["AIN3"])/len(r["AIN3"])
-                        , sum(r["AIN4"])/len(r["AIN4"]), sum(r["AIN5"])/len(r["AIN5"]), sum(r["AIN6"])/len(r["AIN6"]), sum(r["AIN7"])/len(r["AIN7"])))
+                    print(r)
+                    # print("Average of %s AIN0, %s AIN1, %s AIN2, %s AIN3, %s AIN4, %s AIN5, %s AIN6, %s AIN7 readings: %s, %s, %s, %s, %s, %s, %s, %s" %
+                    #     (len(r["AIN0"]), len(r["AIN1"]), len(r["AIN2"]), len(r["AIN3"]), len(r["AIN4"]), len(r["AIN5"]), len(r["AIN6"]), len(r["AIN7"])
+                    #     , sum(r["AIN0"])/len(r["AIN0"]), sum(r["AIN1"])/len(r["AIN1"]), sum(r["AIN2"])/len(r["AIN2"]), sum(r["AIN3"])/len(r["AIN3"])
+                    #     , sum(r["AIN4"])/len(r["AIN4"]), sum(r["AIN5"])/len(r["AIN5"]), sum(r["AIN6"])/len(r["AIN6"]), sum(r["AIN7"])/len(r["AIN7"])))
 
                     dataCount+=1
+                    currentSamples += len(r["AIN0"])
 
             print(dataCount)
             self.d.streamStop()
@@ -389,6 +397,9 @@ class UILabCapture():
     def start_gui(self):
         #Convert the given hz into milliseconds
         self.hz_to_mil = int((1/self.scan_hz.get())*1000)
+        
+
+        self.max_samples = 2 * self.scan_hz.get()
         #updates every second
 
         #update Label values AIN 0-7
@@ -399,13 +410,16 @@ class UILabCapture():
 
         #Call to initalize the labjack and its configuration 
         self.init_labjack() 
+        self.d.streamStop()
 
+        #self.labjack_stream()
 
         #Call to initialize cameras and to capture an image
         #self.operate_cameras()
 
 
-        self.start_figure() 
+        #self.start_figure() 
+        self.animate_with_stream()
 
 
         #Start writing data to a file 
@@ -438,9 +452,12 @@ class UILabCapture():
         self.ax1 = self.fig.add_subplot(1,1,1)
 
         #Variables
+
         self.xs = []
         self.volts = []
         self.hz = tk.DoubleVar()
+
+
 
         #Create a Tkinter widget out of that figure
         self.canvas = FigureCanvasTkAgg(self.fig, master = self.scrolling_graph)
@@ -450,7 +467,16 @@ class UILabCapture():
 
         # Periodically call FuncAnimation() to handle the polling and updating of the graph
         self.fargs = (self.ax1, self.xs, self.volts, self.hz)
-        self.ani = animation.FuncAnimation(  self.fig, self.animate, fargs=self.fargs, interval=self.hz_to_mil)
+
+        #For new stream function
+
+        #Limit of how many items we can have in the array
+        self.max_items = 2 * self.scan_hz.get()
+        #Array with 2x times the hz rate 
+        self.data = [] 
+        #self.fargs = (self.ax1, self.xs, self.data, self.max_items)
+
+        self.ani = animation.FuncAnimation(self.fig, self.animate, fargs=self.fargs, interval=1000)
 
 
     #Holds the function calls that need to be updated based on hz
@@ -462,6 +488,51 @@ class UILabCapture():
         #self.labjack_stream()
 
         self.update_after_call_id = self.root.after(self.hz_to_mil, self.update_gui) #Schedule for this function to call itself agin after update_interval milliseconds
+
+
+    #Animates the graph using a stream of data from the labjack
+    def animate_with_stream(self):
+
+        x = np.arange(1,365,1)
+        #Limit of how many items we can have in the array
+        self.max_items = 2 * self.scan_hz.get()
+        #Array with 2x times the hz rate 
+        self.data = [] 
+        #Array to hold the newly streamed data
+        new_data = []
+
+        new_data = []
+        #Stream in 1s worth of data
+        self.d.streamStart()
+        for r in self.d.streamData():
+            if r is not None:
+                new_data.append(r['AIN0'])
+                if len(new_data) >= self.max_items:
+                    break
+                #currentSamples += len(r["AIN0"])
+        self.d.streamStop()
+
+        #Append on the new data
+        self.data.append(new_data)
+
+        #Remove older data
+        self.data = self.data[-self.max_items:]
+
+        #Plot the array with new information on the graph 
+        f = figure.Figure(figsize=(6,6))
+        ax = f.add_axes([0,0,1,1])
+        color = 'tab:red'
+        ax.set_ylabel('Amplitude', color=color)
+        ax.plot(self.data)
+
+
+
+        canvas = FigureCanvasTkAgg(f, self.scrolling_graph)
+        canvas.get_tk_widget().grid(row = 0, column = 0)
+        canvas.draw()
+
+
+
 
 
 def main():
