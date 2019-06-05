@@ -30,3 +30,8 @@
 - Added structure to support the Primary/Secondary system for capturing video
 - Added the ability to access the amplitude from the labjack in a stream 
 - Added a Start/Stop experiment button for better control
+
+### 6/5
+- corrected functionality for the start/stop buttons
+  - they now tart and stop the experiment properly
+- Hz is now back to an entry. The experiment should have a set hz once the scientist hits start
