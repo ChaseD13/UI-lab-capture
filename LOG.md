@@ -35,3 +35,4 @@
 - Corrected functionality for the start/stop buttons
   - they now tart and stop the experiment properly
 - Hz is now back to an entry. The experiment should have a set hz once the scientist hits start
+- Primary camera can now take an image and display it on the GUI
