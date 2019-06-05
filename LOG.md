@@ -32,6 +32,6 @@
 - Added a Start/Stop experiment button for better control
 
 ### 6/5
-- corrected functionality for the start/stop buttons
+- Corrected functionality for the start/stop buttons
   - they now tart and stop the experiment properly
 - Hz is now back to an entry. The experiment should have a set hz once the scientist hits start
