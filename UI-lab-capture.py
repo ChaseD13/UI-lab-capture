@@ -194,9 +194,12 @@ class UILabCapture():
 
         #Scales
         #Scale for users to adjust the scan speed in Hz
-        self.scan_scale = tk.Scale(self.labjack_values, from_=0.1, to=100, orient = tk.HORIZONTAL, label = "Scan rate (Hz)", length = 500, resolution = 1)
-        self.scan_scale.grid(row = 3, column = 0, columnspan = 8)
-        self.scan_scale.set(1)
+        # self.scan_scale = tk.Scale(self.labjack_values, from_=0.1, to=100, orient = tk.HORIZONTAL, label = "Scan rate (Hz)", length = 500, resolution = 1)
+        # self.scan_scale.grid(row = 3, column = 0, columnspan = 8)
+        # self.scan_scale.set(1)
+
+        self.scan_hz = tk.IntVar()
+        tk.Entry(self.labjack_values, textvariable = self.scan_hz).grid(row = 3, column = 0, columnspan = 2)
 
         #Button
         tk.Button(self.labjack_values, text = "Start Experiment", command = self.start_gui).grid(row = 4, column = 0, padx = 20, pady = 10) 
@@ -217,16 +220,17 @@ class UILabCapture():
 
         except:
             LabJackPython.Close() #Close all UD driver opened devices in the process
+            self.init_labjack()
 
 
     #Update voltage is used to constantly monitor the AIN0 port to see what voltage the port is reciving
     #It is adjusted by the scan_scale variable to scan faster or slower
     def update_voltage(self):
         #Try to set the update interval equal to the desired Hz converted into milliseconds
-        try:
-            self.update_interval =int((1/self.scan_scale.get())*1000)
-        except:
-            pass
+        # try:
+        #     self.update_interval =int((1/self.scan_scale.get())*1000)
+        # except:
+        #     pass
     
         self.var.set(round(self.d.getAIN(0), 3)) #Get and set voltage for port 0
         self.var1.set(round(self.d.getAIN(1), 3)) #Get and set voltage for port 1
@@ -239,8 +243,8 @@ class UILabCapture():
 
         # self.ani = animation.FuncAnimation(self.fig, self.animate, fargs=self.fargs, interval=self.update_interval)
 
-        self.root.update() #Update the window
-        self.root.after(self.update_interval, self.update_voltage) #Schedule for this function to call itself agin after update_interval milliseconds
+        #self.root.update() #Update the window
+        #self.root.after(self.update_interval, self.update_voltage) #Schedule for this function to call itself agin after update_interval milliseconds
 
 
     # This function is called periodically from FuncAnimation
@@ -383,6 +387,8 @@ class UILabCapture():
 
     #A function to handle all updating of values and functions
     def start_gui(self):
+        #Convert the given hz into milliseconds
+        self.hz_to_mil = int((1/self.scan_hz.get())*1000)
         #updates every second
 
         #update Label values AIN 0-7
@@ -398,20 +404,31 @@ class UILabCapture():
         #Call to initialize cameras and to capture an image
         #self.operate_cameras()
 
-        #self.labjack_stream()
-        
-        #Call to the voltage test function to show the voltages being taken in by the labjack
-        self.update_voltage() 
 
         self.start_figure() 
 
+
         #Start writing data to a file 
-        self.write_to_file()
+        # self.write_to_file()
+
+        self.update_gui()
 
 
     #A function to stop the current experiment and revert the GUI back to a clean state
     def stop_gui(self):
-        print("Stop revert to clean state")
+        self.root.after_cancel(self.update_after_call_id) #Stopes the call to update being made in update_gui
+        self.ani.event_source.stop() #Stops the call to update being made in animate 
+
+        self.var.set("") #Voltage being read from the labjack at FIO0
+        self.var1.set("") #Voltage being read from the labjack at FIO1
+        self.var2.set("") #Voltage being read from the labjack at FIO2
+        self.var3.set("") #Voltage being read from the labjack at FIO3
+        self.var4.set("") #Voltage being read from the labjack at FIO4
+        self.var5.set("") #Voltage being read from the labjack at FIO5
+        self.var6.set("") #Voltage being read from the labjack at FIO6
+        self.var7.set("") #Voltage being read from the labjack at FIO7
+
+        #Remove/Clean graph on stop experiment
 
 
     #Helper function to create a graph and begin animation on it
@@ -433,7 +450,18 @@ class UILabCapture():
 
         # Periodically call FuncAnimation() to handle the polling and updating of the graph
         self.fargs = (self.ax1, self.xs, self.volts, self.hz)
-        self.ani = animation.FuncAnimation(  self.fig, self.animate, fargs=self.fargs, interval=100)
+        self.ani = animation.FuncAnimation(  self.fig, self.animate, fargs=self.fargs, interval=self.hz_to_mil)
+
+
+    #Holds the function calls that need to be updated based on hz
+    def update_gui(self):
+        
+        #Call to the voltage test function to show the voltages being taken in by the labjack
+        self.update_voltage()
+
+        #self.labjack_stream()
+
+        self.update_after_call_id = self.root.after(self.hz_to_mil, self.update_gui) #Schedule for this function to call itself agin after update_interval milliseconds
 
 
 def main():
