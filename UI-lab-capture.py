@@ -18,6 +18,7 @@ except ImportError:  # Python 3
 from copy import deepcopy
 import sys
 import traceback
+from PIL import Image, ImageTk
 
 # MAX_REQUESTS is the number of packets to be read.
 MAX_REQUESTS = 75
@@ -326,7 +327,7 @@ class UILabCapture():
         '''
 
         # Set acquisition mode
-        self.cam_primary.AcquisitionMode.SetValue(PySpin.AcquisitionMode_SingleFrame)
+        self.cam_primary.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
         #cam_secondary.AcquisitionMode.SetValue(PySpin.AcquisitionMode_SingleFrame)
 
         # Start acquisition; note that secondary camera has to be started first so 
@@ -341,6 +342,12 @@ class UILabCapture():
         # Save images
         self.image_primary.Save('primary.png')
         #image_secondary.Save('secondary.png')
+
+        image = Image.open('primary.png')
+        photo = ImageTk.PhotoImage(image)
+        img = tk.Label(self.camera_frame, image = photo)
+        img.image = photo
+        img.grid(row = 0, column = 0)
 
         # Stop acquisition
         self.cam_primary.EndAcquisition()
@@ -410,7 +417,6 @@ class UILabCapture():
 
         #Call to initalize the labjack and its configuration 
         self.init_labjack() 
-        self.d.streamStop()
 
         #self.labjack_stream()
 
