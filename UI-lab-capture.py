@@ -116,19 +116,19 @@ class UILabCapture():
         self.root = tk.Tk()
         
         self.camera_frame = tk.Frame(self.root)
-        self.camera_frame.grid(row = 0, column = 0, padx =10, pady = 10)
-        self.camera_frame.grid_rowconfigure(0, weight = 1)
-        self.camera_frame.grid_columnconfigure(0, weight = 1)
+        self.camera_frame.grid(row = 0, column = 0, padx =10, pady = 10, stick="nsew")
+        self.camera_frame.grid_rowconfigure(1, weight = 1)
+        self.camera_frame.grid_columnconfigure(3, weight = 1)
 
         self.labjack_values = tk.Frame(self.root)
         self.labjack_values.grid(row = 1, column = 0, padx = 10, pady = 10)
-        self.labjack_values.grid_rowconfigure(0, weight = 1)
-        self.labjack_values.grid_columnconfigure(0, weight = 1)
+        # self.labjack_values.grid_rowconfigure(0, weight = 1)
+        # self.labjack_values.grid_columnconfigure(0, weight = 1)
 
         self.scrolling_graph = tk.Frame(self.root)
         self.scrolling_graph.grid(row = 1, column = 1, padx= 10, pady = 10)
-        self.scrolling_graph.grid_rowconfigure(0, weight = 1)
-        self.scrolling_graph.grid_columnconfigure(0, weight = 1)
+        # self.scrolling_graph.grid_rowconfigure(0, weight = 1)
+        # self.scrolling_graph.grid_columnconfigure(0, weight = 1)
 
 
         #Style
@@ -401,9 +401,8 @@ class UILabCapture():
 
 
     #Animates the graph using a stream of data from the labjack
+    #TODO: Plot the remaing AIN 
     def animate_with_stream(self):
-
-        ax = np.arange(1,365,1)
         #List to hold the newly streamed data
         new_data = []
 
@@ -426,19 +425,21 @@ class UILabCapture():
         #Plot the array with new information on the graph 
         # f = figure.Figure(figsize=(5,5))
         # ax.plot(self.data)
-        f = figure.Figure(figsize = (5,4))
-        ax1 = f.add_subplot(1,1,1)
-        ax1.plot(self.time_inc, self.data)
+        self.f = figure.Figure(figsize = (5,4))
+        self.ax1 = self.f.add_subplot(1,1,1)
+        self.ax1.plot(self.time_inc, self.data)
 
-        #ax1.set_xlim([0,2])
-        ax1.set_ylim([-.5,5])
+        #Set fixed axis values
+        #self.ax1.set_xlim([0,2])
+        self.ax1.set_ylim([-.5,5])
 
-        canvas = FigureCanvasTkAgg(f, self.scrolling_graph)
+        #Label axes
+        self.ax1.set_xlabel('time (s)')
+        self.ax1.set_ylabel('amplitude')
+
+        canvas = FigureCanvasTkAgg(self.f, self.scrolling_graph)
         canvas.get_tk_widget().grid(row = 0, column = 0)
         canvas.draw()
-
-
-
 
 
 def main():
