@@ -5,6 +5,7 @@ import tkinter as tk
 import datetime  #now.strftime("%Y-%m-%d %H:%M")
 import matplotlib.figure as figure
 import matplotlib.animation as animation
+import matplotlib.pylab as plt
 import matplotlib.dates as mdates
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
@@ -17,11 +18,8 @@ except ImportError:  # Python 3
 from copy import deepcopy
 import sys
 import traceback
+from PIL import Image, ImageTk
 
-# MAX_REQUESTS is the number of packets to be read.
-MAX_REQUESTS = 75
-# SCAN_FREQUENCY is the scan frequency of stream mode in Hz
-SCAN_FREQUENCY = 50000
 
 #Add funtions purpose here....
 #Properties: now, ad_var
@@ -46,29 +44,30 @@ class SettingsWindow():
         #Variables
         self.ad_var = tk.StringVar() #Holds the active directory string.
 
-        self.date_var = tk.StringVar() #Holds the date string
-        self.date_var.set(self.now.strftime("%Y-%m-%d")) #Sets that date variable to today's current date. Can be edited by the user.
+        self.wd_var = tk.StringVar() #Holds the date string
 
-        self.volnum_var = tk.StringVar() #Holds the Vole number. Assigned by the user.
-        self.volnum_var.set(1)
+        self.basefile_var = tk.StringVar() #Holds the Vole number. Assigned by the user.
 
-        self.pcamera_var = tk.IntVar() #Holds the Vole number. Assigned by the user.
+        self.pcamera_var = tk.IntVar() #Holds the serial number for the primary labjack camera
         self.pcamera_var.set(19061331)
+
+        self.splitsize_var = tk.IntVar()
 
 
         #Labels for entry boxes
-        tk.Label(self.root, text = "Date: ",).grid(row = 0, column = 0, padx = 10, pady = 10)
-        tk.Label(self.root, text = "Vol Number: ").grid(row = 1, column = 0, padx = 10, pady = 10)
+        tk.Label(self.root, text = "Working Directory: ",).grid(row = 0, column = 0, padx = 10, pady = 10)
+        tk.Label(self.root, text = "Base File Name: ").grid(row = 1, column = 0, padx = 10, pady = 10)
         tk.Label(self.root, text = "Active Directory: ").grid(row = 2, column = 0, padx = 10, pady = 10)
         tk.Label(self. root, text = "Primary Camera Serial Number: ").grid(row = 3, column = 0, padx = 10, pady = 10) 
+        tk.Label(self.root, text = "File Split Size: ").grid(row = 4, column = 0, padx = 10, pady = 10)
 
 
         #Entry boxes
-        self.date_slot = tk.Entry(self.root, textvariable = self.date_var, justify = "left", width = 80) #Entry variable for setting the date.
-        self.date_slot.grid(row = 0, column = 2, padx = 10, pady = 10)
+        self.wd_slot = tk.Entry(self.root, textvariable = self.wd_var, justify = "left", width = 80) #Entry variable for setting the date.
+        self.wd_slot.grid(row = 0, column = 2, padx = 10, pady = 10)
 
-        self.volnum_slot = tk.Entry(self.root, textvariable = self.volnum_var, justify = "left", width = 80) #Entry variable for setting the vole number. 
-        self.volnum_slot.grid(row = 1, column = 2, padx = 10, pady = 10)
+        self.basefile_slot = tk.Entry(self.root, textvariable = self.basefile_var, justify = "left", width = 80) #Entry variable for setting the vole number. 
+        self.basefile_slot.grid(row = 1, column = 2, padx = 10, pady = 10)
 
         self.ad_slot = tk.Entry(self.root, textvariable = self.ad_var, justify = "left", width = 80) #Entry variable that displays the current AD as it is being filled in.
         self.ad_slot.grid(row = 2, column = 2, padx = 10, pady = 10)
@@ -76,7 +75,10 @@ class SettingsWindow():
         self.primary_slot = tk.Entry(self.root, textvariable = self.pcamera_var, justify = "left", width = 80) #Entry variable for setting the primary camera's serial number 
         self.primary_slot.grid(row = 3, column = 2, padx = 10, pady = 10)
 
-        tk.Button(self.root, text = "Submit", command = self.submit_ad).grid(row = 4, column = 0, padx = 20, pady = 10) #Button that when pressed closes the settings window
+        self.splitsize_slot = tk.Entry(self.root, textvariable = self.splitsize_var, justify = "left", width = 80) #Entry variable for setting the primary camera's serial number 
+        self.splitsize_slot.grid(row = 4, column = 2, padx = 10, pady = 10)
+
+        tk.Button(self.root, text = "Submit", command = self.submit_ad).grid(row = 5, column = 0, padx = 20, pady = 10) #Button that when pressed closes the settings window
 
         #Function Calls
 
@@ -87,7 +89,7 @@ class SettingsWindow():
 
     #Function that updates 
     def update_window(self):
-        self.ad_var.set("C:/Users/Behavior Scoring/Desktop/UI-lab-capture/" + self.date_var.get() + "/" + self.volnum_var.get() + ".txt")
+        self.ad_var.set(self.wd_var.get() + "/" + self.basefile_var.get() + ".txt")
         self.after_event = self.root.after(5, self.update_window)
         self.root.update()
 
@@ -102,11 +104,10 @@ class SettingsWindow():
 #Functions: init_labjack, update_voltage, build_window, animate
 class UILabCapture():
     #Initialization; Takes in an active directory path as a parameter
-    def __init__(self, active_directory, primary_serial_number):
+    def __init__(self, active_directory, primary_serial_number, fss):
         self.filepath = active_directory #Active directory path is stored in a local varaible
         self.primary_sn = primary_serial_number #The serial number of the primary Blackfly S camera
-        self.update_interval = 100 #Time (ms) between polling/animation updates
-        self.max_elements = 20   #Maximum number of elements to store in plot lists
+        self.fileSplitSize = fss #The size of the file split
  
     #Builds the main GUI window 
     def build_window(self):
@@ -114,19 +115,19 @@ class UILabCapture():
         self.root = tk.Tk()
         
         self.camera_frame = tk.Frame(self.root)
-        self.camera_frame.grid(row = 0, column = 0, padx =10, pady = 10)
-        self.camera_frame.grid_rowconfigure(0, weight = 1)
-        self.camera_frame.grid_columnconfigure(0, weight = 1)
+        self.camera_frame.pack(side = "top", fill = "x")
+        # self.camera_frame.grid_rowconfigure(1, weight = 1)
+        # self.camera_frame.grid_columnconfigure(3, weight = 1)
 
         self.labjack_values = tk.Frame(self.root)
-        self.labjack_values.grid(row = 1, column = 0, padx = 10, pady = 10)
-        self.labjack_values.grid_rowconfigure(0, weight = 1)
-        self.labjack_values.grid_columnconfigure(0, weight = 1)
+        self.labjack_values.pack(side = "left", expand = True, fill = "both")
+        # self.labjack_values.grid_rowconfigure(0, weight = 1)
+        # self.labjack_values.grid_columnconfigure(0, weight = 1)
 
         self.scrolling_graph = tk.Frame(self.root)
-        self.scrolling_graph.grid(row = 1, column = 1, padx= 10, pady = 10)
-        self.scrolling_graph.grid_rowconfigure(0, weight = 1)
-        self.scrolling_graph.grid_columnconfigure(0, weight = 1)
+        self.scrolling_graph.pack(side = "right", expand = True, fill = "both")
+        # self.scrolling_graph.grid_rowconfigure(0, weight = 1)
+        # self.scrolling_graph.grid_columnconfigure(0, weight = 1)
 
 
         #Style
@@ -140,7 +141,7 @@ class UILabCapture():
 
         #Variables
 
-        self.var = tk.IntVar() #Voltage being read from the labjack at FIO0
+        self.var0 = tk.IntVar() #Voltage being read from the labjack at FIO0
         self.var1 = tk.IntVar() #Voltage being read from the labjack at FIO1
         self.var2 = tk.IntVar() #Voltage being read from the labjack at FIO2
         self.var3 = tk.IntVar() #Voltage being read from the labjack at FIO3
@@ -154,53 +155,72 @@ class UILabCapture():
 
         # Label that is filling the space where the camera will be
         self.cameras = tk.Label(self.camera_frame, text = "Space for Cameras", bg = "orange", height = 20)
-        self.cameras.grid(row = 0, column = 0)
+        self.cameras.pack(fill = "both")
 
         #Labels for the FIO 0-7 ports on the labjacks
-        tk.Label(self.labjack_values, text = "AIN0: ").grid(row = 0, column = 0)
-        tk.Label(self.labjack_values, text = "AIN1: ").grid(row = 0, column = 1)
-        tk.Label(self.labjack_values, text = "AIN2: ").grid(row = 0, column = 2)
-        tk.Label(self.labjack_values, text = "AIN3: ").grid(row = 0, column = 3)
-        tk.Label(self.labjack_values, text = "AIN4: ").grid(row = 0, column = 4)
-        tk.Label(self.labjack_values, text = "AIN5: ").grid(row = 0, column = 5)
-        tk.Label(self.labjack_values, text = "AIN6: ").grid(row = 0, column = 6)
-        tk.Label(self.labjack_values, text = "AIN7: ").grid(row = 0, column = 7)
+        tk.Label(self.labjack_values, text = "AIN0: ").pack()
+        self.ain_zero = tk.Label(self.labjack_values, textvariable = self.var0)
+        self.ain_zero.pack()
 
-        self.ain_zero = tk.Label(self.labjack_values, textvariable = self.var)
-        self.ain_zero.grid(row = 1, column = 0)
-
+        tk.Label(self.labjack_values, text = "AIN1: ").pack()
         self.ain_one = tk.Label(self.labjack_values, textvariable = self.var1)
-        self.ain_one.grid(row = 1, column = 1)
+        self.ain_one.pack()
 
+        tk.Label(self.labjack_values, text = "AIN2: ").pack()
         self.ain_two = tk.Label(self.labjack_values, textvariable = self.var2)
-        self.ain_two.grid(row = 1, column = 2)
+        self.ain_two.pack()
 
+        tk.Label(self.labjack_values, text = "AIN3: ").pack()
         self.ain_three = tk.Label(self.labjack_values, textvariable = self.var3)
-        self.ain_three.grid(row = 1, column = 3)
+        self.ain_three.pack()
 
+        tk.Label(self.labjack_values, text = "AIN4: ").pack()
         self.ain_four = tk.Label(self.labjack_values, textvariable = self.var4)
-        self.ain_four.grid(row = 1, column = 4)
+        self.ain_four.pack()
 
+        tk.Label(self.labjack_values, text = "AIN5: ").pack()
         self.ain_five = tk.Label(self.labjack_values, textvariable = self.var5)
-        self.ain_five.grid(row = 1, column = 5)
+        self.ain_five.pack()
 
+        tk.Label(self.labjack_values, text = "AIN6: ").pack()
         self.ain_six = tk.Label(self.labjack_values, textvariable = self.var6)
-        self.ain_six.grid(row = 1, column = 6)
+        self.ain_six.pack()
 
+        tk.Label(self.labjack_values, text = "AIN7: ").pack()
         self.ain_seven = tk.Label(self.labjack_values, textvariable = self.var7)
-        self.ain_seven.grid(row = 1, column = 7)
+        self.ain_seven.pack()
 
 
 
         #Scales
         #Scale for users to adjust the scan speed in Hz
-        self.scan_scale = tk.Scale(self.labjack_values, from_=0.1, to=100, orient = tk.HORIZONTAL, label = "Scan rate (Hz)", length = 500, resolution = 1)
-        self.scan_scale.grid(row = 3, column = 0, columnspan = 8)
-        self.scan_scale.set(1)
+        # self.scan_scale = tk.Scale(self.labjack_values, from_=0.1, to=100, orient = tk.HORIZONTAL, label = "Scan rate (Hz)", length = 500, resolution = 1)
+        # self.scan_scale.grid(row = 3, column = 0, columnspan = 8)
+        # self.scan_scale.set(1)
+
+
+        self.scan_hz = tk.IntVar()
+        self.scan_hz.set("Enter desired hz...")
+        self.scan_space = tk.Entry(self.labjack_values, textvariable = self.scan_hz)
+        self.scan_space.pack(padx = 10, pady = 10)
+
+        #Input for the number of channels
+        # self.num_channels = tk.IntVar()
+        # self.num_channels.set("# of channels...")
+        # self.num_channels_entry = tk.Entry(self.labjack_values, textvariable = self.num_channels)
+        # self.num_channels_entry.pack(padx = 10, pady = 10)
 
         #Button
-        tk.Button(self.labjack_values, text = "Start Experiment", command = self.start_gui).grid(row = 4, column = 0, padx = 20, pady = 10) 
-        tk.Button(self.labjack_values, text = "Stop Experiment", command = self.stop_gui).grid(row = 4, column = 1, padx = 20, pady = 10) 
+        tk.Button(self.labjack_values, text = "Start Experiment", command = self.start_gui).pack(padx = 10, pady = 10)
+        tk.Button(self.labjack_values, text = "Stop Experiment", command = self.stop_gui).pack(padx = 10, pady = 10)
+
+
+        self.f = figure.Figure(figsize = (5,4))
+
+        #Create a cnvas in the window to place the figure into 
+        self.canvas = FigureCanvasTkAgg(self.f, self.scrolling_graph)
+        self.canvas.get_tk_widget().pack(side = "top", fill = "both", expand = True)
+        self.canvas.draw()
 
         #Start the window
         self.root.mainloop() 
@@ -213,8 +233,9 @@ class UILabCapture():
             self.d = u3.U3() #Connect to labjack 
             self.d.getCalibrationData() #Calibration data will be used by functions that convert binary data to voltage/temperature and vice versa
             self.d.configIO(FIOAnalog= 255) #Set the FIO to read in analog; 255 sets all eight FIO ports to analog
-            self.d.streamConfig(NumChannels=8, PChannels=[0, 1, 2, 3, 4, 5, 6, 7], NChannels=[31, 31, 31, 31, 31, 31, 31, 31], Resolution=3, ScanFrequency=SCAN_FREQUENCY)
-
+            #self.d.streamConfig(NumChannels= self.num_channels.get(), PChannels=range(self.num_channels.get()), NChannels=[31]*self.num_channels.get(), Resolution=1, ScanFrequency=self.scan_hz.get())
+            self.d.streamConfig(NumChannels= 8, PChannels=range(8), NChannels=[31]*8, Resolution=1, ScanFrequency=self.scan_hz.get())
+            
         except:
             LabJackPython.Close() #Close all UD driver opened devices in the process
 
@@ -223,59 +244,31 @@ class UILabCapture():
     #It is adjusted by the scan_scale variable to scan faster or slower
     def update_voltage(self):
         #Try to set the update interval equal to the desired Hz converted into milliseconds
+        # try:
+        #     self.update_interval =int((1/self.scan_scale.get())*1000)
+        # except:
+        #     pass
         try:
-            self.update_interval =int((1/self.scan_scale.get())*1000)
-        except:
-            pass
-    
-        self.var.set(round(self.d.getAIN(0), 3)) #Get and set voltage for port 0
-        self.var1.set(round(self.d.getAIN(1), 3)) #Get and set voltage for port 1
-        self.var2.set(round(self.d.getAIN(2), 3)) #Get and set voltage for port 2
-        self.var3.set(round(self.d.getAIN(3), 3)) #Get and set voltage for port 3
-        self.var4.set(round(self.d.getAIN(4), 3)) #Get and set voltage for port 4
-        self.var5.set(round(self.d.getAIN(5), 3)) #Get and set voltage for port 5
-        self.var6.set(round(self.d.getAIN(6), 3)) #Get and set voltage for port 6
-        self.var7.set(round(self.d.getAIN(7), 3)) #Get and set voltage for port 7
+            self.var0.set(round(self.d.getAIN(0), 3)) #Get and set voltage for port 0
+            self.var1.set(round(self.d.getAIN(1), 3)) #Get and set voltage for port 1
+            self.var2.set(round(self.d.getAIN(2), 3)) #Get and set voltage for port 2
+            self.var3.set(round(self.d.getAIN(3), 3)) #Get and set voltage for port 3
+            self.var4.set(round(self.d.getAIN(4), 3)) #Get and set voltage for port 4
+            self.var5.set(round(self.d.getAIN(5), 3)) #Get and set voltage for port 5
+            self.var6.set(round(self.d.getAIN(6), 3)) #Get and set voltage for port 6
+            self.var7.set(round(self.d.getAIN(7), 3)) #Get and set voltage for port 7
+        except: 
+            self.d.streamStop()
+            self.update_voltage()
 
         # self.ani = animation.FuncAnimation(self.fig, self.animate, fargs=self.fargs, interval=self.update_interval)
 
-        self.root.update() #Update the window
-        self.root.after(self.update_interval, self.update_voltage) #Schedule for this function to call itself agin after update_interval milliseconds
-
-
-    # This function is called periodically from FuncAnimation
-    def animate(self, i, ax1, xs, volts, hz):
-
-        # Update data to display temperature and light values
-        new_volts = round(self.d.getAIN(0), 3)
-
-        # Update the labels
-        hz.set(new_volts)
-
-        # Append timestamp to x-axis list
-        self.timestamp = mdates.date2num(datetime.datetime.now())
-        xs.append(self.timestamp)
-
-        # Append sensor data to lists for plotting
-        volts.append(new_volts)
-
-        # Limit lists to a set number of elements
-        xs = xs[-self.max_elements:]
-        volts = volts[-self.max_elements:]
-
-        # Clear, format, and plot light values first (behind)
-        color = 'tab:red'
-        ax1.clear()
-        ax1.set_ylabel('Amplitude', color=color)
-        ax1.tick_params(axis='Time', labelcolor=color)
-        ax1.fill_between(xs, volts, 0, linewidth=2, color=color, alpha=0.3)
-
-        # Format timestamps to be more readable
-        ax1.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S.%f"))
-        self.fig.autofmt_xdate()
+        #self.root.update() #Update the window
+        #self.root.after(self.update_interval, self.update_voltage) #Schedule for this function to call itself agin after update_interval milliseconds
 
 
     #Function to wrtie the data out to a directory
+    #TODO: Find what data needs to be written out to the directory 
     def write_to_file(self):
         try:
             os.makedirs(os.path.dirname(self.filepath), exist_ok=True)
@@ -323,7 +316,7 @@ class UILabCapture():
         '''
 
         # Set acquisition mode
-        self.cam_primary.AcquisitionMode.SetValue(PySpin.AcquisitionMode_SingleFrame)
+        self.cam_primary.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
         #cam_secondary.AcquisitionMode.SetValue(PySpin.AcquisitionMode_SingleFrame)
 
         # Start acquisition; note that secondary camera has to be started first so 
@@ -338,6 +331,12 @@ class UILabCapture():
         # Save images
         self.image_primary.Save('primary.png')
         #image_secondary.Save('secondary.png')
+
+        image = Image.open('primary.png')
+        photo = ImageTk.PhotoImage(image)
+        img = tk.Label(self.camera_frame, image = photo)
+        img.image = photo
+        img.grid(row = 0, column = 0)
 
         # Stop acquisition
         self.cam_primary.EndAcquisition()
@@ -355,85 +354,175 @@ class UILabCapture():
         del self.cam_list
 
 
-    #Function that recives a stream of Amplitude from the Labjack at FIO 0-7
-    def labjack_stream(self):
-        dataCount = 0
-        try:
-            self.d.streamStart()
-
-            for r in self.d.streamData():
-                if r is not None:
-                    if dataCount >= MAX_REQUESTS:
-                        break
-
-                    # Comment out these prints and do something with r
-                    print("Average of %s AIN0, %s AIN1, %s AIN2, %s AIN3, %s AIN4, %s AIN5, %s AIN6, %s AIN7 readings: %s, %s, %s, %s, %s, %s, %s, %s" %
-                        (len(r["AIN0"]), len(r["AIN1"]), len(r["AIN2"]), len(r["AIN3"]), len(r["AIN4"]), len(r["AIN5"]), len(r["AIN6"]), len(r["AIN7"])
-                        , sum(r["AIN0"])/len(r["AIN0"]), sum(r["AIN1"])/len(r["AIN1"]), sum(r["AIN2"])/len(r["AIN2"]), sum(r["AIN3"])/len(r["AIN3"])
-                        , sum(r["AIN4"])/len(r["AIN4"]), sum(r["AIN5"])/len(r["AIN5"]), sum(r["AIN6"])/len(r["AIN6"]), sum(r["AIN7"])/len(r["AIN7"])))
-
-                    dataCount+=1
-
-            print(dataCount)
-            self.d.streamStop()
-
-        except:
-            print("Error")
-
-
     #A function to handle all updating of values and functions
     def start_gui(self):
-        #updates every second
+        #Time the experiment was started
+        self.start_time = datetime.datetime.now()
 
-        #update Label values AIN 0-7
+        #Update counter for the graph to keep measurements in time of one second
+        self.seconds_interval = datetime.datetime.now()
 
-        #update the graph 
-        #graph x axis is the voltage readings
-        #graph y axis should be determined by the Hz 
+        self.datetimeFormat = '%Y-%m-%d %H:%M:%S.%f'
+
+        #Convert the given hz into milliseconds
+        self.hz_to_mil = int((1/self.scan_hz.get())*1000)
+
+        #Limit of how many items we can have in the list
+        self.max_items = 2 * self.scan_hz.get()
+
+        #List with 2x times the hz rate 
+        self.data_ain0 = [0] * self.max_items
+        self.data_ain1 = [0] * self.max_items
+        self.data_ain2 = [0] * self.max_items
+        self.data_ain3 = [0] * self.max_items
+        self.data_ain4 = [0] * self.max_items
+        self.data_ain5 = [0] * self.max_items
+        self.data_ain6 = [0] * self.max_items
+        self.data_ain7 = [0] * self.max_items
+
+        #Set an array to hold time incriments
+        self.time_inc = []
+        for x in np.arange(0.0, 2.0, 2/self.max_items):
+            self.time_inc.append(x)
+
+        self.ax1 = self.f.add_subplot(1,1,1)
+
+        # self.max_samples = 2 * self.scan_hz.get()
 
         #Call to initalize the labjack and its configuration 
         self.init_labjack() 
 
-
         #Call to initialize cameras and to capture an image
         #self.operate_cameras()
 
-        #self.labjack_stream()
-        
-        #Call to the voltage test function to show the voltages being taken in by the labjack
-        self.update_voltage() 
 
-        self.start_figure() 
+        #self.start_figure()
+
 
         #Start writing data to a file 
-        self.write_to_file()
+        # self.write_to_file()
+
+        self.update_gui()
 
 
     #A function to stop the current experiment and revert the GUI back to a clean state
     def stop_gui(self):
-        print("Stop revert to clean state")
+        self.root.after_cancel(self.update_after_call_id) #Stops the call to update being made in update_gui
+        #self.ani.event_source.stop() #Stops the call to update being made in animate 
+
+        self.var0.set("0") #Voltage being read from the labjack at FIO0
+        self.var1.set("0") #Voltage being read from the labjack at FIO1
+        self.var2.set("0") #Voltage being read from the labjack at FIO2
+        self.var3.set("0") #Voltage being read from the labjack at FIO3
+        self.var4.set("0") #Voltage being read from the labjack at FIO4
+        self.var5.set("0") #Voltage being read from the labjack at FIO5
+        self.var6.set("0") #Voltage being read from the labjack at FIO6
+        self.var7.set("0") #Voltage being read from the labjack at FIO7
+
+        #Completley removes the canvas
+        # self.canvas.get_tk_widget().destroy()
+        self.ax1.clear()
+        #Set fixed axis values
+        self.ax1.set_xlim([0,2])
+        self.ax1.set_ylim([-.5,5])
+        #Label axes
+        self.ax1.set_xlabel('time (s)')
+        self.ax1.set_ylabel('amplitude')        
+        self.canvas.draw()
+
+        self.scan_hz.set("Enter desired hz...")
 
 
-    #Helper function to create a graph and begin animation on it
-    def start_figure(self):
-        #Create Matplotlib figure and a set of axes to draw our plot on
-        self.fig = figure.Figure(figsize = (5,4))
-        self.ax1 = self.fig.add_subplot(1,1,1)
+    #Holds the function calls that need to be updated based on hz
+    def update_gui(self):
+        
+        #Call to the voltage test function to show the voltages being taken in by the labjack
+        self.update_voltage()
 
-        #Variables
-        self.xs = []
-        self.volts = []
-        self.hz = tk.DoubleVar()
+       # start time - if time now - time when started is one second call animate?
+        # diffTime = datetime.datetime.now() - self.seconds_interval
+        # if diffTime.seconds == 1:
+        #     self.seconds_interval = datetime.datetime.now()
+        self.animate_with_stream()
 
-        #Create a Tkinter widget out of that figure
-        self.canvas = FigureCanvasTkAgg(self.fig, master = self.scrolling_graph)
-        self.canvas_plot = self.canvas.get_tk_widget()
+        self.update_after_call_id = self.root.after(40, self.update_gui) #Schedule for this function to call itself agin after update_interval milliseconds
 
-        self.canvas_plot.grid(row = 0, column = 0, rowspan = 5, columnspan = 4)
 
-        # Periodically call FuncAnimation() to handle the polling and updating of the graph
-        self.fargs = (self.ax1, self.xs, self.volts, self.hz)
-        self.ani = animation.FuncAnimation(  self.fig, self.animate, fargs=self.fargs, interval=100)
+    #Animates the graph using a stream of data from the labjack
+    #TODO: Plot the remaing AIN 
+    def animate_with_stream(self):
+        #List to hold the newly streamed data
+        new_data_ain0 = []
+        new_data_ain1 = []
+        new_data_ain2 = []
+        new_data_ain3 = []
+        new_data_ain4 = []
+        new_data_ain5 = []
+        new_data_ain6 = []
+        new_data_ain7 = []
+
+        #Stream in X hz events/second worth of data and extend it into the new data list
+        self.d.streamStart()
+        for r in self.d.streamData():
+            if r is not None:
+                new_data_ain0.extend(r['AIN0'])
+                new_data_ain1.extend(r['AIN1'])
+                new_data_ain2.extend(r['AIN2'])
+                new_data_ain3.extend(r['AIN3'])
+                new_data_ain4.extend(r['AIN4'])
+                new_data_ain5.extend(r['AIN5'])
+                new_data_ain6.extend(r['AIN6'])
+                new_data_ain7.extend(r['AIN7'])
+            if len(new_data_ain0) >= self.scan_hz.get():
+                break
+        self.d.streamStop()
+        #print(new_data)
+
+        #Extends on the new data into data
+        self.data_ain0.extend(new_data_ain0)
+        self.data_ain1.extend(new_data_ain1)
+        self.data_ain2.extend(new_data_ain2)
+        self.data_ain3.extend(new_data_ain3)
+        self.data_ain4.extend(new_data_ain4)
+        self.data_ain5.extend(new_data_ain5)
+        self.data_ain6.extend(new_data_ain6)
+        self.data_ain7.extend(new_data_ain7)
+
+        #Remove older data
+        self.data_ain0 = self.data_ain0[-self.max_items:]
+        self.data_ain1 = self.data_ain1[-self.max_items:]
+        self.data_ain2 = self.data_ain2[-self.max_items:]
+        self.data_ain3 = self.data_ain3[-self.max_items:]
+        self.data_ain4 = self.data_ain4[-self.max_items:]
+        self.data_ain5 = self.data_ain5[-self.max_items:]
+        self.data_ain6 = self.data_ain6[-self.max_items:]
+        self.data_ain7 = self.data_ain7[-self.max_items:]
+
+        #Plot the array with new information on the graph 
+        # f = figure.Figure(figsize=(5,5))
+        # ax.plot(self.data)
+        self.ax1.clear()
+
+        #Set fixed axis values
+        #self.ax1.set_xlim([0,2])
+        self.ax1.set_ylim([-.5,5])
+
+        #Label axes
+        self.ax1.set_xlabel('time (s)')
+        self.ax1.set_ylabel('amplitude')
+
+        self.ax1.plot(self.time_inc, self.data_ain0, label = 'AIN0')
+        self.ax1.plot(self.time_inc, self.data_ain1, label = 'AIN1')
+        self.ax1.plot(self.time_inc, self.data_ain2, label = 'AIN2')
+        self.ax1.plot(self.time_inc, self.data_ain3, label = 'AIN3')
+        self.ax1.plot(self.time_inc, self.data_ain4, label = 'AIN4')
+        self.ax1.plot(self.time_inc, self.data_ain5, label = 'AIN5')
+        self.ax1.plot(self.time_inc, self.data_ain6, label = 'AIN6')
+        self.ax1.plot(self.time_inc, self.data_ain7, label = 'AIN7')
+        self.ax1.legend()
+        self.canvas.draw()
+        
+
 
 
 def main():
@@ -450,13 +539,14 @@ def main():
     #Store the active directory set by the user into an easy to identify variable: ad
     ad = startwindow.ad_var.get()
     psn = startwindow.pcamera_var.get()
+    fss = startwindow.splitsize_var.get()
 
 
     #Make a call to the UILabCapture class which contains functions for the main GUI window
     #app is a UILabCapture
     #properties: None
     #functions: init_labjack, update_voltage, build_window
-    app = UILabCapture(ad, psn) 
+    app = UILabCapture(ad, psn, fss) 
     #Call the build_window to create the main GUI window
     app.build_window()
 

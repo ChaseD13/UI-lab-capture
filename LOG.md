@@ -30,3 +30,15 @@
 - Added structure to support the Primary/Secondary system for capturing video
 - Added the ability to access the amplitude from the labjack in a stream 
 - Added a Start/Stop experiment button for better control
+
+### 6/5
+- Corrected functionality for the start/stop buttons
+  - they now tart and stop the experiment properly
+- Hz is now back to an entry. The experiment should have a set hz once the scientist hits start
+- Primary camera can now take an image and display it on the GUI
+
+### 6/6
+- Added graph that pulls data from the **Labjack** via a stream
+- Redesigned GUI using pack instead of grid
+- Added flavour text to scan entry 
+- Stop button removes canvas upon experiment stopping
