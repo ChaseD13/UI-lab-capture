@@ -39,6 +39,7 @@
 
 ### 6/6
 - Added graph that pulls data from the **Labjack** via a stream
+  - Displays all 8 analog channels
 - Redesigned GUI using pack instead of grid
 - Added more entry options for data aquisition 
 - Stop button erases figure but keeps graph
