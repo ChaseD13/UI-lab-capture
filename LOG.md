@@ -40,5 +40,7 @@
 ### 6/6
 - Added graph that pulls data from the **Labjack** via a stream
 - Redesigned GUI using pack instead of grid
-- Added flavour text to scan entry 
-- Stop button removes canvas upon experiment stopping
+- Added more entry options for data aquisition 
+- Stop button erases figure but keeps graph
+- Added starting framework for editing the number of channels visible
+
