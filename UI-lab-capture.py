@@ -349,7 +349,14 @@ class UILabCapture():
         self.max_items = 2 * self.scan_hz.get()
 
         #List with 2x times the hz rate 
-        self.data = [0] * self.max_items
+        self.data_ain0 = [0] * self.max_items
+        self.data_ain1 = [0] * self.max_items
+        self.data_ain2 = [0] * self.max_items
+        self.data_ain3 = [0] * self.max_items
+        self.data_ain4 = [0] * self.max_items
+        self.data_ain5 = [0] * self.max_items
+        self.data_ain6 = [0] * self.max_items
+        self.data_ain7 = [0] * self.max_items
 
         #Set an array to hold time incriments
         self.time_inc = []
@@ -359,6 +366,14 @@ class UILabCapture():
         self.f = figure.Figure(figsize = (5,4))
 
         self.ax1 = self.f.add_subplot(1,1,1)
+        # self.ax2 = self.f.add_subplot(1,1,2)
+        # self.ax3 = self.f.add_subplot(1,1,3)
+        # self.ax4 = self.f.add_subplot(1,1,4)
+        # self.ax5 = self.f.add_subplot(1,1,5)
+        # self.ax6 = self.f.add_subplot(1,1,6)
+        # self.ax7 = self.f.add_subplot(1,1,7)
+        # self.ax8 = self.f.add_subplot(1,1,8)
+
 
         #Create a cnvas in the window to place the figure into 
         self.canvas = FigureCanvasTkAgg(self.f, self.scrolling_graph)
@@ -419,23 +434,51 @@ class UILabCapture():
     #TODO: Plot the remaing AIN 
     def animate_with_stream(self):
         #List to hold the newly streamed data
-        new_data = []
+        new_data_ain0 = []
+        new_data_ain1 = []
+        new_data_ain2 = []
+        new_data_ain3 = []
+        new_data_ain4 = []
+        new_data_ain5 = []
+        new_data_ain6 = []
+        new_data_ain7 = []
 
         #Stream in X hz events/second worth of data and extend it into the new data list
         self.d.streamStart()
         for r in self.d.streamData():
             if r is not None:
-                new_data.extend(r['AIN0'])
-            if len(new_data) >= self.scan_hz.get():
+                new_data_ain0.extend(r['AIN0'])
+                new_data_ain1.extend(r['AIN1'])
+                new_data_ain2.extend(r['AIN2'])
+                new_data_ain3.extend(r['AIN3'])
+                new_data_ain4.extend(r['AIN4'])
+                new_data_ain5.extend(r['AIN5'])
+                new_data_ain6.extend(r['AIN6'])
+                new_data_ain7.extend(r['AIN7'])
+            if len(new_data_ain0) >= self.scan_hz.get():
                 break
         self.d.streamStop()
         #print(new_data)
 
         #Extends on the new data into data
-        self.data.extend(new_data)
+        self.data_ain0.extend(new_data_ain0)
+        self.data_ain1.extend(new_data_ain1)
+        self.data_ain2.extend(new_data_ain2)
+        self.data_ain3.extend(new_data_ain3)
+        self.data_ain4.extend(new_data_ain4)
+        self.data_ain5.extend(new_data_ain5)
+        self.data_ain6.extend(new_data_ain6)
+        self.data_ain7.extend(new_data_ain7)
 
         #Remove older data
-        self.data = self.data[-self.max_items:]
+        self.data_ain0 = self.data_ain0[-self.max_items:]
+        self.data_ain1 = self.data_ain1[-self.max_items:]
+        self.data_ain2 = self.data_ain2[-self.max_items:]
+        self.data_ain3 = self.data_ain3[-self.max_items:]
+        self.data_ain4 = self.data_ain4[-self.max_items:]
+        self.data_ain5 = self.data_ain5[-self.max_items:]
+        self.data_ain6 = self.data_ain6[-self.max_items:]
+        self.data_ain7 = self.data_ain7[-self.max_items:]
 
         #Plot the array with new information on the graph 
         # f = figure.Figure(figsize=(5,5))
@@ -450,8 +493,15 @@ class UILabCapture():
         self.ax1.set_xlabel('time (s)')
         self.ax1.set_ylabel('amplitude')
 
-        self.ax1.plot(self.time_inc, self.data)
-
+        self.ax1.plot(self.time_inc, self.data_ain0, label = 'AIN0')
+        self.ax1.plot(self.time_inc, self.data_ain1, label = 'AIN1')
+        self.ax1.plot(self.time_inc, self.data_ain2, label = 'AIN2')
+        self.ax1.plot(self.time_inc, self.data_ain3, label = 'AIN3')
+        self.ax1.plot(self.time_inc, self.data_ain4, label = 'AIN4')
+        self.ax1.plot(self.time_inc, self.data_ain5, label = 'AIN5')
+        self.ax1.plot(self.time_inc, self.data_ain6, label = 'AIN6')
+        self.ax1.plot(self.time_inc, self.data_ain7, label = 'AIN7')
+        self.ax1.legend()
         self.canvas.draw()
         
 
