@@ -232,15 +232,18 @@ class UILabCapture():
         #     self.update_interval =int((1/self.scan_scale.get())*1000)
         # except:
         #     pass
-    
-        self.var.set(round(self.d.getAIN(0), 3)) #Get and set voltage for port 0
-        self.var1.set(round(self.d.getAIN(1), 3)) #Get and set voltage for port 1
-        self.var2.set(round(self.d.getAIN(2), 3)) #Get and set voltage for port 2
-        self.var3.set(round(self.d.getAIN(3), 3)) #Get and set voltage for port 3
-        self.var4.set(round(self.d.getAIN(4), 3)) #Get and set voltage for port 4
-        self.var5.set(round(self.d.getAIN(5), 3)) #Get and set voltage for port 5
-        self.var6.set(round(self.d.getAIN(6), 3)) #Get and set voltage for port 6
-        self.var7.set(round(self.d.getAIN(7), 3)) #Get and set voltage for port 7
+        try:
+            self.var.set(round(self.d.getAIN(0), 3)) #Get and set voltage for port 0
+            self.var1.set(round(self.d.getAIN(1), 3)) #Get and set voltage for port 1
+            self.var2.set(round(self.d.getAIN(2), 3)) #Get and set voltage for port 2
+            self.var3.set(round(self.d.getAIN(3), 3)) #Get and set voltage for port 3
+            self.var4.set(round(self.d.getAIN(4), 3)) #Get and set voltage for port 4
+            self.var5.set(round(self.d.getAIN(5), 3)) #Get and set voltage for port 5
+            self.var6.set(round(self.d.getAIN(6), 3)) #Get and set voltage for port 6
+            self.var7.set(round(self.d.getAIN(7), 3)) #Get and set voltage for port 7
+        except: 
+            self.d.streamStop()
+            self.update_voltage()
 
         # self.ani = animation.FuncAnimation(self.fig, self.animate, fargs=self.fargs, interval=self.update_interval)
 
@@ -425,7 +428,11 @@ class UILabCapture():
 
 
         #self.start_figure() 
-        self.animate_with_stream()
+        try: 
+            self.animate_with_stream()
+        except:
+            self.d.streamStop()
+            self.animate_with_stream()
 
 
         #Start writing data to a file 
@@ -448,7 +455,7 @@ class UILabCapture():
         self.var6.set("") #Voltage being read from the labjack at FIO6
         self.var7.set("") #Voltage being read from the labjack at FIO7
 
-        #Remove/Clean graph on stop experiment
+        #TODO: Remove/Clean graph on stop experiment
 
 
     #Helper function to create a graph and begin animation on it
@@ -512,11 +519,12 @@ class UILabCapture():
         self.d.streamStart()
         for r in self.d.streamData():
             if r is not None:
-                new_data.append(r['AIN0'])
-                if len(new_data) >= self.max_items:
-                    break
+                new_data.extend(r['AIN0'])
+            if len(new_data) >= self.max_items:
+                break
                 #currentSamples += len(r["AIN0"])
         self.d.streamStop()
+        print(new_data)
 
         #Append on the new data
         self.data.append(new_data)
