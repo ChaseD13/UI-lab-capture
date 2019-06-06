@@ -20,10 +20,6 @@ import sys
 import traceback
 from PIL import Image, ImageTk
 
-# MAX_REQUESTS is the number of packets to be read.
-MAX_REQUESTS = 75
-# SCAN_FREQUENCY is the scan frequency of stream mode in Hz
-SCAN_FREQUENCY = 5000
 
 #Add funtions purpose here....
 #Properties: now, ad_var
@@ -49,20 +45,21 @@ class SettingsWindow():
         self.ad_var = tk.StringVar() #Holds the active directory string.
 
         self.date_var = tk.StringVar() #Holds the date string
-        self.date_var.set(self.now.strftime("%Y-%m-%d")) #Sets that date variable to today's current date. Can be edited by the user.
 
         self.volnum_var = tk.StringVar() #Holds the Vole number. Assigned by the user.
-        self.volnum_var.set(1)
 
-        self.pcamera_var = tk.IntVar() #Holds the Vole number. Assigned by the user.
+        self.pcamera_var = tk.IntVar() #Holds the serial number for the primary labjack camera
         self.pcamera_var.set(19061331)
+
+        self.splitsize_var = tk.IntVar()
 
 
         #Labels for entry boxes
-        tk.Label(self.root, text = "Date: ",).grid(row = 0, column = 0, padx = 10, pady = 10)
-        tk.Label(self.root, text = "Vol Number: ").grid(row = 1, column = 0, padx = 10, pady = 10)
+        tk.Label(self.root, text = "Working Directory: ",).grid(row = 0, column = 0, padx = 10, pady = 10)
+        tk.Label(self.root, text = "Base File Name: ").grid(row = 1, column = 0, padx = 10, pady = 10)
         tk.Label(self.root, text = "Active Directory: ").grid(row = 2, column = 0, padx = 10, pady = 10)
         tk.Label(self. root, text = "Primary Camera Serial Number: ").grid(row = 3, column = 0, padx = 10, pady = 10) 
+        tk.Label(self.root, text = "File Split Size: ").grid(row = 4, column = 0, padx = 10, pady = 10)
 
 
         #Entry boxes
@@ -78,7 +75,10 @@ class SettingsWindow():
         self.primary_slot = tk.Entry(self.root, textvariable = self.pcamera_var, justify = "left", width = 80) #Entry variable for setting the primary camera's serial number 
         self.primary_slot.grid(row = 3, column = 2, padx = 10, pady = 10)
 
-        tk.Button(self.root, text = "Submit", command = self.submit_ad).grid(row = 4, column = 0, padx = 20, pady = 10) #Button that when pressed closes the settings window
+        self.splitsize_slot = tk.Entry(self.root, textvariable = self.splitsize_var, justify = "left", width = 80) #Entry variable for setting the primary camera's serial number 
+        self.splitsize_slot.grid(row = 4, column = 2, padx = 10, pady = 10)
+
+        tk.Button(self.root, text = "Submit", command = self.submit_ad).grid(row = 5, column = 0, padx = 20, pady = 10) #Button that when pressed closes the settings window
 
         #Function Calls
 
@@ -107,8 +107,6 @@ class UILabCapture():
     def __init__(self, active_directory, primary_serial_number):
         self.filepath = active_directory #Active directory path is stored in a local varaible
         self.primary_sn = primary_serial_number #The serial number of the primary Blackfly S camera
-        self.update_interval = 100 #Time (ms) between polling/animation updates
-        self.max_elements = 20   #Maximum number of elements to store in plot lists
  
     #Builds the main GUI window 
     def build_window(self):
@@ -205,6 +203,10 @@ class UILabCapture():
         self.scan_space = tk.Entry(self.labjack_values, textvariable = self.scan_hz)
         self.scan_space.pack(padx = 10, pady = 10)
 
+        self.num_channels = tk.IntVar()
+        self.num_channels.set("Enter desired # of channels...")
+        self.num_channels_entry = tk.Entry(self.labjack_values, textvariable = self.num_channels)
+        self.num_channels_entry.pack(padx = 10, pady = 10)
 
         #Button
         tk.Button(self.labjack_values, text = "Start Experiment", command = self.start_gui).pack(padx = 10, pady = 10)
@@ -221,7 +223,7 @@ class UILabCapture():
             self.d = u3.U3() #Connect to labjack 
             self.d.getCalibrationData() #Calibration data will be used by functions that convert binary data to voltage/temperature and vice versa
             self.d.configIO(FIOAnalog= 255) #Set the FIO to read in analog; 255 sets all eight FIO ports to analog
-            self.d.streamConfig(NumChannels=8, PChannels=[0, 1, 2, 3, 4, 5, 6, 7], NChannels=[31, 31, 31, 31, 31, 31, 31, 31], Resolution=3, ScanFrequency=self.scan_hz.get())
+            self.d.streamConfig(NumChannels=8, PChannels=[0, 1, 2, 3, 4, 5, 6, 7], NChannels=[31, 31, 31, 31, 31, 31, 31, 31], Resolution=1, ScanFrequency=self.scan_hz.get())
             
         except:
             LabJackPython.Close() #Close all UD driver opened devices in the process
@@ -255,6 +257,7 @@ class UILabCapture():
 
 
     #Function to wrtie the data out to a directory
+    #TODO: Find what data needs to be written out to the directory 
     def write_to_file(self):
         try:
             os.makedirs(os.path.dirname(self.filepath), exist_ok=True)
@@ -342,6 +345,14 @@ class UILabCapture():
 
     #A function to handle all updating of values and functions
     def start_gui(self):
+        #Time the experiment was started
+        self.start_time = datetime.datetime.now()
+
+        #Update counter for the graph to keep measurements in time of one second
+        self.seconds_interval = datetime.datetime.now()
+
+        self.datetimeFormat = '%Y-%m-%d %H:%M:%S.%f'
+
         #Convert the given hz into milliseconds
         self.hz_to_mil = int((1/self.scan_hz.get())*1000)
 
@@ -366,14 +377,6 @@ class UILabCapture():
         self.f = figure.Figure(figsize = (5,4))
 
         self.ax1 = self.f.add_subplot(1,1,1)
-        # self.ax2 = self.f.add_subplot(1,1,2)
-        # self.ax3 = self.f.add_subplot(1,1,3)
-        # self.ax4 = self.f.add_subplot(1,1,4)
-        # self.ax5 = self.f.add_subplot(1,1,5)
-        # self.ax6 = self.f.add_subplot(1,1,6)
-        # self.ax7 = self.f.add_subplot(1,1,7)
-        # self.ax8 = self.f.add_subplot(1,1,8)
-
 
         #Create a cnvas in the window to place the figure into 
         self.canvas = FigureCanvasTkAgg(self.f, self.scrolling_graph)
@@ -424,10 +427,13 @@ class UILabCapture():
         #Call to the voltage test function to show the voltages being taken in by the labjack
         self.update_voltage()
 
-        #start time - if time now - time when started is one second call animate?
+       # start time - if time now - time when started is one second call animate?
+        # diffTime = datetime.datetime.now() - self.seconds_interval
+        # if diffTime.seconds == 1:
+        #     self.seconds_interval = datetime.datetime.now()
         self.animate_with_stream()
 
-        self.update_after_call_id = self.root.after(self.hz_to_mil, self.update_gui) #Schedule for this function to call itself agin after update_interval milliseconds
+        self.update_after_call_id = self.root.after(40, self.update_gui) #Schedule for this function to call itself agin after update_interval milliseconds
 
 
     #Animates the graph using a stream of data from the labjack
