@@ -36,3 +36,9 @@
   - they now tart and stop the experiment properly
 - Hz is now back to an entry. The experiment should have a set hz once the scientist hits start
 - Primary camera can now take an image and display it on the GUI
+
+### 6/6
+- Added graph that pulls data from the **Labjack** via a stream
+- Redesigned GUI using pack instead of grid
+- Added flavour text to scan entry 
+- Stop button removes canvas upon experiment stopping
