@@ -44,9 +44,9 @@ class SettingsWindow():
         #Variables
         self.ad_var = tk.StringVar() #Holds the active directory string.
 
-        self.date_var = tk.StringVar() #Holds the date string
+        self.wd_var = tk.StringVar() #Holds the date string
 
-        self.volnum_var = tk.StringVar() #Holds the Vole number. Assigned by the user.
+        self.basefile_var = tk.StringVar() #Holds the Vole number. Assigned by the user.
 
         self.pcamera_var = tk.IntVar() #Holds the serial number for the primary labjack camera
         self.pcamera_var.set(19061331)
@@ -63,11 +63,11 @@ class SettingsWindow():
 
 
         #Entry boxes
-        self.date_slot = tk.Entry(self.root, textvariable = self.date_var, justify = "left", width = 80) #Entry variable for setting the date.
-        self.date_slot.grid(row = 0, column = 2, padx = 10, pady = 10)
+        self.wd_slot = tk.Entry(self.root, textvariable = self.wd_var, justify = "left", width = 80) #Entry variable for setting the date.
+        self.wd_slot.grid(row = 0, column = 2, padx = 10, pady = 10)
 
-        self.volnum_slot = tk.Entry(self.root, textvariable = self.volnum_var, justify = "left", width = 80) #Entry variable for setting the vole number. 
-        self.volnum_slot.grid(row = 1, column = 2, padx = 10, pady = 10)
+        self.basefile_slot = tk.Entry(self.root, textvariable = self.basefile_var, justify = "left", width = 80) #Entry variable for setting the vole number. 
+        self.basefile_slot.grid(row = 1, column = 2, padx = 10, pady = 10)
 
         self.ad_slot = tk.Entry(self.root, textvariable = self.ad_var, justify = "left", width = 80) #Entry variable that displays the current AD as it is being filled in.
         self.ad_slot.grid(row = 2, column = 2, padx = 10, pady = 10)
@@ -89,7 +89,7 @@ class SettingsWindow():
 
     #Function that updates 
     def update_window(self):
-        self.ad_var.set("C:/Users/Behavior Scoring/Desktop/UI-lab-capture/" + self.date_var.get() + "/" + self.volnum_var.get() + ".txt")
+        self.ad_var.set(self.wd_var.get() + "/" + self.basefile_var.get() + ".txt")
         self.after_event = self.root.after(5, self.update_window)
         self.root.update()
 
@@ -104,9 +104,10 @@ class SettingsWindow():
 #Functions: init_labjack, update_voltage, build_window, animate
 class UILabCapture():
     #Initialization; Takes in an active directory path as a parameter
-    def __init__(self, active_directory, primary_serial_number):
+    def __init__(self, active_directory, primary_serial_number, fss):
         self.filepath = active_directory #Active directory path is stored in a local varaible
         self.primary_sn = primary_serial_number #The serial number of the primary Blackfly S camera
+        self.fileSplitSize = fss #The size of the file split
  
     #Builds the main GUI window 
     def build_window(self):
@@ -119,12 +120,12 @@ class UILabCapture():
         # self.camera_frame.grid_columnconfigure(3, weight = 1)
 
         self.labjack_values = tk.Frame(self.root)
-        self.labjack_values.pack(side = "left")
+        self.labjack_values.pack(side = "left", expand = True, fill = "both")
         # self.labjack_values.grid_rowconfigure(0, weight = 1)
         # self.labjack_values.grid_columnconfigure(0, weight = 1)
 
         self.scrolling_graph = tk.Frame(self.root)
-        self.scrolling_graph.pack(side = "right", fill = "both", expand = True)
+        self.scrolling_graph.pack(side = "right", expand = True, fill = "both")
         # self.scrolling_graph.grid_rowconfigure(0, weight = 1)
         # self.scrolling_graph.grid_columnconfigure(0, weight = 1)
 
@@ -140,7 +141,7 @@ class UILabCapture():
 
         #Variables
 
-        self.var = tk.IntVar() #Voltage being read from the labjack at FIO0
+        self.var0 = tk.IntVar() #Voltage being read from the labjack at FIO0
         self.var1 = tk.IntVar() #Voltage being read from the labjack at FIO1
         self.var2 = tk.IntVar() #Voltage being read from the labjack at FIO2
         self.var3 = tk.IntVar() #Voltage being read from the labjack at FIO3
@@ -158,7 +159,7 @@ class UILabCapture():
 
         #Labels for the FIO 0-7 ports on the labjacks
         tk.Label(self.labjack_values, text = "AIN0: ").pack()
-        self.ain_zero = tk.Label(self.labjack_values, textvariable = self.var)
+        self.ain_zero = tk.Label(self.labjack_values, textvariable = self.var0)
         self.ain_zero.pack()
 
         tk.Label(self.labjack_values, text = "AIN1: ").pack()
@@ -203,14 +204,23 @@ class UILabCapture():
         self.scan_space = tk.Entry(self.labjack_values, textvariable = self.scan_hz)
         self.scan_space.pack(padx = 10, pady = 10)
 
-        self.num_channels = tk.IntVar()
-        self.num_channels.set("Enter desired # of channels...")
-        self.num_channels_entry = tk.Entry(self.labjack_values, textvariable = self.num_channels)
-        self.num_channels_entry.pack(padx = 10, pady = 10)
+        #Input for the number of channels
+        # self.num_channels = tk.IntVar()
+        # self.num_channels.set("# of channels...")
+        # self.num_channels_entry = tk.Entry(self.labjack_values, textvariable = self.num_channels)
+        # self.num_channels_entry.pack(padx = 10, pady = 10)
 
         #Button
         tk.Button(self.labjack_values, text = "Start Experiment", command = self.start_gui).pack(padx = 10, pady = 10)
         tk.Button(self.labjack_values, text = "Stop Experiment", command = self.stop_gui).pack(padx = 10, pady = 10)
+
+
+        self.f = figure.Figure(figsize = (5,4))
+
+        #Create a cnvas in the window to place the figure into 
+        self.canvas = FigureCanvasTkAgg(self.f, self.scrolling_graph)
+        self.canvas.get_tk_widget().pack(side = "top", fill = "both", expand = True)
+        self.canvas.draw()
 
         #Start the window
         self.root.mainloop() 
@@ -223,7 +233,8 @@ class UILabCapture():
             self.d = u3.U3() #Connect to labjack 
             self.d.getCalibrationData() #Calibration data will be used by functions that convert binary data to voltage/temperature and vice versa
             self.d.configIO(FIOAnalog= 255) #Set the FIO to read in analog; 255 sets all eight FIO ports to analog
-            self.d.streamConfig(NumChannels=8, PChannels=[0, 1, 2, 3, 4, 5, 6, 7], NChannels=[31, 31, 31, 31, 31, 31, 31, 31], Resolution=1, ScanFrequency=self.scan_hz.get())
+            #self.d.streamConfig(NumChannels= self.num_channels.get(), PChannels=range(self.num_channels.get()), NChannels=[31]*self.num_channels.get(), Resolution=1, ScanFrequency=self.scan_hz.get())
+            self.d.streamConfig(NumChannels= 8, PChannels=range(8), NChannels=[31]*8, Resolution=1, ScanFrequency=self.scan_hz.get())
             
         except:
             LabJackPython.Close() #Close all UD driver opened devices in the process
@@ -238,7 +249,7 @@ class UILabCapture():
         # except:
         #     pass
         try:
-            self.var.set(round(self.d.getAIN(0), 3)) #Get and set voltage for port 0
+            self.var0.set(round(self.d.getAIN(0), 3)) #Get and set voltage for port 0
             self.var1.set(round(self.d.getAIN(1), 3)) #Get and set voltage for port 1
             self.var2.set(round(self.d.getAIN(2), 3)) #Get and set voltage for port 2
             self.var3.set(round(self.d.getAIN(3), 3)) #Get and set voltage for port 3
@@ -374,14 +385,7 @@ class UILabCapture():
         for x in np.arange(0.0, 2.0, 2/self.max_items):
             self.time_inc.append(x)
 
-        self.f = figure.Figure(figsize = (5,4))
-
         self.ax1 = self.f.add_subplot(1,1,1)
-
-        #Create a cnvas in the window to place the figure into 
-        self.canvas = FigureCanvasTkAgg(self.f, self.scrolling_graph)
-        self.canvas.get_tk_widget().pack(side = "top", fill = "both", expand = True)
-        self.canvas.draw()
 
         # self.max_samples = 2 * self.scan_hz.get()
 
@@ -406,17 +410,25 @@ class UILabCapture():
         self.root.after_cancel(self.update_after_call_id) #Stops the call to update being made in update_gui
         #self.ani.event_source.stop() #Stops the call to update being made in animate 
 
-        self.var.set("") #Voltage being read from the labjack at FIO0
-        self.var1.set("") #Voltage being read from the labjack at FIO1
-        self.var2.set("") #Voltage being read from the labjack at FIO2
-        self.var3.set("") #Voltage being read from the labjack at FIO3
-        self.var4.set("") #Voltage being read from the labjack at FIO4
-        self.var5.set("") #Voltage being read from the labjack at FIO5
-        self.var6.set("") #Voltage being read from the labjack at FIO6
-        self.var7.set("") #Voltage being read from the labjack at FIO7
+        self.var0.set("0") #Voltage being read from the labjack at FIO0
+        self.var1.set("0") #Voltage being read from the labjack at FIO1
+        self.var2.set("0") #Voltage being read from the labjack at FIO2
+        self.var3.set("0") #Voltage being read from the labjack at FIO3
+        self.var4.set("0") #Voltage being read from the labjack at FIO4
+        self.var5.set("0") #Voltage being read from the labjack at FIO5
+        self.var6.set("0") #Voltage being read from the labjack at FIO6
+        self.var7.set("0") #Voltage being read from the labjack at FIO7
 
         #Completley removes the canvas
-        self.canvas.get_tk_widget().destroy()
+        # self.canvas.get_tk_widget().destroy()
+        self.ax1.clear()
+        #Set fixed axis values
+        self.ax1.set_xlim([0,2])
+        self.ax1.set_ylim([-.5,5])
+        #Label axes
+        self.ax1.set_xlabel('time (s)')
+        self.ax1.set_ylabel('amplitude')        
+        self.canvas.draw()
 
         self.scan_hz.set("Enter desired hz...")
 
@@ -527,13 +539,14 @@ def main():
     #Store the active directory set by the user into an easy to identify variable: ad
     ad = startwindow.ad_var.get()
     psn = startwindow.pcamera_var.get()
+    fss = startwindow.splitsize_var.get()
 
 
     #Make a call to the UILabCapture class which contains functions for the main GUI window
     #app is a UILabCapture
     #properties: None
     #functions: init_labjack, update_voltage, build_window
-    app = UILabCapture(ad, psn) 
+    app = UILabCapture(ad, psn, fss) 
     #Call the build_window to create the main GUI window
     app.build_window()
 
