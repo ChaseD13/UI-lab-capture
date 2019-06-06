@@ -116,17 +116,17 @@ class UILabCapture():
         self.root = tk.Tk()
         
         self.camera_frame = tk.Frame(self.root)
-        self.camera_frame.grid(row = 0, column = 0, padx =10, pady = 10, stick="nsew")
-        self.camera_frame.grid_rowconfigure(1, weight = 1)
-        self.camera_frame.grid_columnconfigure(3, weight = 1)
+        self.camera_frame.pack(side = "top", fill = "x")
+        # self.camera_frame.grid_rowconfigure(1, weight = 1)
+        # self.camera_frame.grid_columnconfigure(3, weight = 1)
 
         self.labjack_values = tk.Frame(self.root)
-        self.labjack_values.grid(row = 1, column = 0, padx = 10, pady = 10)
+        self.labjack_values.pack(side = "left")
         # self.labjack_values.grid_rowconfigure(0, weight = 1)
         # self.labjack_values.grid_columnconfigure(0, weight = 1)
 
         self.scrolling_graph = tk.Frame(self.root)
-        self.scrolling_graph.grid(row = 1, column = 1, padx= 10, pady = 10)
+        self.scrolling_graph.pack(side = "right", fill = "both", expand = True)
         # self.scrolling_graph.grid_rowconfigure(0, weight = 1)
         # self.scrolling_graph.grid_columnconfigure(0, weight = 1)
 
@@ -156,41 +156,40 @@ class UILabCapture():
 
         # Label that is filling the space where the camera will be
         self.cameras = tk.Label(self.camera_frame, text = "Space for Cameras", bg = "orange", height = 20)
-        self.cameras.grid(row = 0, column = 0)
+        self.cameras.pack(fill = "both")
 
         #Labels for the FIO 0-7 ports on the labjacks
-        tk.Label(self.labjack_values, text = "AIN0: ").grid(row = 0, column = 0)
-        tk.Label(self.labjack_values, text = "AIN1: ").grid(row = 0, column = 1)
-        tk.Label(self.labjack_values, text = "AIN2: ").grid(row = 0, column = 2)
-        tk.Label(self.labjack_values, text = "AIN3: ").grid(row = 0, column = 3)
-        tk.Label(self.labjack_values, text = "AIN4: ").grid(row = 0, column = 4)
-        tk.Label(self.labjack_values, text = "AIN5: ").grid(row = 0, column = 5)
-        tk.Label(self.labjack_values, text = "AIN6: ").grid(row = 0, column = 6)
-        tk.Label(self.labjack_values, text = "AIN7: ").grid(row = 0, column = 7)
-
+        tk.Label(self.labjack_values, text = "AIN0: ").pack()
         self.ain_zero = tk.Label(self.labjack_values, textvariable = self.var)
-        self.ain_zero.grid(row = 1, column = 0)
+        self.ain_zero.pack()
 
+        tk.Label(self.labjack_values, text = "AIN1: ").pack()
         self.ain_one = tk.Label(self.labjack_values, textvariable = self.var1)
-        self.ain_one.grid(row = 1, column = 1)
+        self.ain_one.pack()
 
+        tk.Label(self.labjack_values, text = "AIN2: ").pack()
         self.ain_two = tk.Label(self.labjack_values, textvariable = self.var2)
-        self.ain_two.grid(row = 1, column = 2)
+        self.ain_two.pack()
 
+        tk.Label(self.labjack_values, text = "AIN3: ").pack()
         self.ain_three = tk.Label(self.labjack_values, textvariable = self.var3)
-        self.ain_three.grid(row = 1, column = 3)
+        self.ain_three.pack()
 
+        tk.Label(self.labjack_values, text = "AIN4: ").pack()
         self.ain_four = tk.Label(self.labjack_values, textvariable = self.var4)
-        self.ain_four.grid(row = 1, column = 4)
+        self.ain_four.pack()
 
+        tk.Label(self.labjack_values, text = "AIN5: ").pack()
         self.ain_five = tk.Label(self.labjack_values, textvariable = self.var5)
-        self.ain_five.grid(row = 1, column = 5)
+        self.ain_five.pack()
 
+        tk.Label(self.labjack_values, text = "AIN6: ").pack()
         self.ain_six = tk.Label(self.labjack_values, textvariable = self.var6)
-        self.ain_six.grid(row = 1, column = 6)
+        self.ain_six.pack()
 
+        tk.Label(self.labjack_values, text = "AIN7: ").pack()
         self.ain_seven = tk.Label(self.labjack_values, textvariable = self.var7)
-        self.ain_seven.grid(row = 1, column = 7)
+        self.ain_seven.pack()
 
 
 
@@ -200,12 +199,16 @@ class UILabCapture():
         # self.scan_scale.grid(row = 3, column = 0, columnspan = 8)
         # self.scan_scale.set(1)
 
+
         self.scan_hz = tk.IntVar()
-        tk.Entry(self.labjack_values, textvariable = self.scan_hz).grid(row = 3, column = 0, columnspan = 2)
+        self.scan_hz.set("Enter desired hz...")
+        self.scan_space = tk.Entry(self.labjack_values, textvariable = self.scan_hz)
+        self.scan_space.pack(padx = 10, pady = 10)
+
 
         #Button
-        tk.Button(self.labjack_values, text = "Start Experiment", command = self.start_gui).grid(row = 4, column = 0, padx = 20, pady = 10) 
-        tk.Button(self.labjack_values, text = "Stop Experiment", command = self.stop_gui).grid(row = 4, column = 1, padx = 20, pady = 10) 
+        tk.Button(self.labjack_values, text = "Start Experiment", command = self.start_gui).pack(padx = 10, pady = 10)
+        tk.Button(self.labjack_values, text = "Stop Experiment", command = self.stop_gui).pack(padx = 10, pady = 10)
 
         #Start the window
         self.root.mainloop() 
@@ -353,6 +356,15 @@ class UILabCapture():
         for x in np.arange(0.0, 2.0, 2/self.max_items):
             self.time_inc.append(x)
 
+        self.f = figure.Figure(figsize = (5,4))
+
+        self.ax1 = self.f.add_subplot(1,1,1)
+
+        #Create a cnvas in the window to place the figure into 
+        self.canvas = FigureCanvasTkAgg(self.f, self.scrolling_graph)
+        self.canvas.get_tk_widget().pack(side = "top", fill = "both", expand = True)
+        self.canvas.draw()
+
         # self.max_samples = 2 * self.scan_hz.get()
 
         #Call to initalize the labjack and its configuration 
@@ -385,7 +397,10 @@ class UILabCapture():
         self.var6.set("") #Voltage being read from the labjack at FIO6
         self.var7.set("") #Voltage being read from the labjack at FIO7
 
-        #TODO: Remove/Clean graph on stop experiment
+        #Completley removes the canvas
+        self.canvas.get_tk_widget().destroy()
+
+        self.scan_hz.set("Enter desired hz...")
 
 
     #Holds the function calls that need to be updated based on hz
@@ -425,9 +440,7 @@ class UILabCapture():
         #Plot the array with new information on the graph 
         # f = figure.Figure(figsize=(5,5))
         # ax.plot(self.data)
-        self.f = figure.Figure(figsize = (5,4))
-        self.ax1 = self.f.add_subplot(1,1,1)
-        self.ax1.plot(self.time_inc, self.data)
+        self.ax1.clear()
 
         #Set fixed axis values
         #self.ax1.set_xlim([0,2])
@@ -437,9 +450,11 @@ class UILabCapture():
         self.ax1.set_xlabel('time (s)')
         self.ax1.set_ylabel('amplitude')
 
-        canvas = FigureCanvasTkAgg(self.f, self.scrolling_graph)
-        canvas.get_tk_widget().grid(row = 0, column = 0)
-        canvas.draw()
+        self.ax1.plot(self.time_inc, self.data)
+
+        self.canvas.draw()
+        
+
 
 
 def main():
