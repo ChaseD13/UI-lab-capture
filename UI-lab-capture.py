@@ -407,6 +407,12 @@ class UILabCapture():
     def start_gui(self):
         #Convert the given hz into milliseconds
         self.hz_to_mil = int((1/self.scan_hz.get())*1000)
+
+        #Limit of how many items we can have in the list
+        self.max_items = 2 * self.scan_hz.get()
+
+        #List with 2x times the hz rate 
+        self.data = [] 
         
 
         self.max_samples = 2 * self.scan_hz.get()
@@ -498,6 +504,8 @@ class UILabCapture():
         #Call to the voltage test function to show the voltages being taken in by the labjack
         self.update_voltage()
 
+        self.animate_with_stream()
+
         #self.labjack_stream()
 
         self.update_after_call_id = self.root.after(self.hz_to_mil, self.update_gui) #Schedule for this function to call itself agin after update_interval milliseconds
@@ -507,27 +515,21 @@ class UILabCapture():
     def animate_with_stream(self):
 
         x = np.arange(1,365,1)
-        #Limit of how many items we can have in the array
-        self.max_items = 2 * self.scan_hz.get()
-        #Array with 2x times the hz rate 
-        self.data = [] 
-        #Array to hold the newly streamed data
+        #List to hold the newly streamed data
         new_data = []
 
-        new_data = []
-        #Stream in 1s worth of data
+        #Stream in X hz events/second worth of data and extend it into the new data list
         self.d.streamStart()
         for r in self.d.streamData():
             if r is not None:
                 new_data.extend(r['AIN0'])
-            if len(new_data) >= self.max_items:
+            if len(new_data) >= self.scan_hz.get():
                 break
-                #currentSamples += len(r["AIN0"])
         self.d.streamStop()
-        print(new_data)
+        #print(new_data)
 
-        #Append on the new data
-        self.data.append(new_data)
+        #Extends on the new data into data
+        self.data.extend(new_data)
 
         #Remove older data
         self.data = self.data[-self.max_items:]
