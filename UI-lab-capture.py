@@ -367,21 +367,24 @@ class UILabCapture():
 
 
     # Retrieves frames from the camera, puts them into the shared queue, and releses them from the buffer
-    # TODO: Write this function
     def acquire_frames(self):
         # Grab frames from buffer
+        buffer_image = self.cam_primary.GetNextImage()
 
         # Store frames into shared queue
+        self.image_queue.put(buffer_image)
 
         # Release images from the buffer 
+        buffer_image.Release()
 
 
     # Using the shared queue, dequeues frames and appends them to the end of the avi recording
-    # TODO: Write this function
     def append_to_video(self):
         # Grab frames from the shared queue, preferably removing from the queue at the same time
+        queue_image = self.image_queue.get()
 
         # Append frames to the avi video
+        self.avi_video.Append(queue_image)
 
 
     # A function to handle all updating of values and functions
