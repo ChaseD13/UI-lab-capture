@@ -45,3 +45,25 @@
 - Stop button erases figure but keeps graph
 - Added starting framework for editing the number of channels visible
 
+### 6/7
+- Out of Office
+
+### 6/10
+- Added ability to record a video of specified frames from the **Blackfly** camera
+  - Capturing at 60hz
+
+### 6/11
+- Added an entry for the number of channels
+- Added decent functionality towards aquring video from the cameras
+
+### 6/12 
+- Added framework for multithreading
+- Reliably capture 60hz video composed of 1000 images
+- Created a GUIA which preforms the order of operations using the mouse, keyboard, and software applications
+
+### 6/13 
+- Added class to handle recording/capturing frames
+
+### 6/14
+- Reformated code
+- Threading succesfully saves avi video at 15fps 
