@@ -20,6 +20,8 @@ import sys
 import traceback
 from PIL import Image, ImageTk
 import multiprocessing
+import signal
+import threading
 
 
 # Add funtions purpose here....
@@ -109,7 +111,7 @@ class UILabCapture():
         self.filepath = active_directory # Active directory path is stored in a local varaible
         self.primary_sn = primary_serial_number # The serial number of the primary Blackfly S camera
         self.fileSplitSize = fss # The size of the file split
-        self.image_queue = multiprocessing.Queue() # Shared queue between processes to save and record frames
+        self.image_queue = Queue.Queue() # Shared queue between processes to save and record frames
         self.running_experiment = False # Boolean value to keep track wther or not there is an experiment running currently
  
     # Builds the main GUI window 
@@ -283,6 +285,7 @@ class UILabCapture():
 
     # Handles the setup and initialization of both cameras and the avi video
     # TODO: Add second camera to test functionality of the primary and secondary triggers.
+    # TODO: Fix output framerate(currently avi video @ 15fps)
     def operate_cameras(self):
         # Get system
         self.system = PySpin.System.GetInstance()
@@ -322,6 +325,7 @@ class UILabCapture():
         self.cam_primary.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
         #cam_secondary.AcquisitionMode.SetValue(PySpin.AcquisitionMode_SingleFrame)
 
+        self.cam_primary.AcquisitionFrameRate = 60
         # Start acquisition; note that secondary camera has to be started first so 
         # acquisition of primary camera triggers secondary camera.
         #cam_secondary.BeginAcquisition()
@@ -337,7 +341,6 @@ class UILabCapture():
         option = PySpin.MJPGOption()
         option.framRate = 60
         option.quality = 75
-
         #Open the recording file
         self.avi_video.Open(filename, option)
 
@@ -358,33 +361,39 @@ class UILabCapture():
         self.cam_primary.DeInit()
         #cam_secondary.DeInit()
 
-        # Clear references to images and cameras
-        del self.image_primary
         #del image_secondary
         del self.cam_primary
         #del cam_secondary
         del self.cam_list
 
 
-    # Retrieves frames from the camera, puts them into the shared queue, and releses them from the buffer
-    def acquire_frames(self):
-        # Grab frames from buffer
-        buffer_image = self.cam_primary.GetNextImage()
+    # While experiment is running, retrieves frames from the camera, puts them into the shared queue, and releses them from the buffer
+    def acquire_frames(self, q, cam):
+        while self.running_experiment:
+            try:
+                # Grab frames from buffer
+                buffer_image = cam.GetNextImage()
 
-        # Store frames into shared queue
-        self.image_queue.put(buffer_image)
+                # Store frames into shared queue
+                q.put(buffer_image)
 
-        # Release images from the buffer 
-        buffer_image.Release()
+                # Release images from the buffer 
+                buffer_image.Release()
+            except:
+                pass
 
 
-    # Using the shared queue, dequeues frames and appends them to the end of the avi recording
-    def append_to_video(self):
-        # Grab frames from the shared queue, preferably removing from the queue at the same time
-        queue_image = self.image_queue.get()
+    # Using the shared queue and while experiment is running, dequeues frames and appends them to the end of the avi recording
+    def append_to_video(self, q):
+        while self.running_experiment:
+            try:
+                # Grab frames from the shared queue, preferably removing from the queue at the same time
+                queue_image = q.get()
 
-        # Append frames to the avi video
-        self.avi_video.Append(queue_image)
+                # Append frames to the avi video
+                self.avi_video.Append(queue_image)
+            except:
+                pass
 
 
     # A function to handle all updating of values and functions
@@ -428,8 +437,14 @@ class UILabCapture():
         # Call to initalize the Labjack
         self.init_labjack() 
 
-        #Call to initialize cameras and avi video
+        # Call to initialize cameras and avi video
         self.operate_cameras()
+
+        # Start processes to begin the capturing from the Blackfly camera
+        self.thread1 = threading.Thread(target= self.acquire_frames, args=(self.image_queue, self.cam_primary,), daemon= True)
+        self.thread2 = threading.Thread(target= self.append_to_video, args=(self.image_queue, ), daemon= True)
+        self.thread1.start()
+        self.thread2.start()
 
         #Start writing data to a file 
         # self.write_to_file()
@@ -442,6 +457,10 @@ class UILabCapture():
     def stop_gui(self):
         # The experiment is no longer running
         self.running_experiment = False
+
+        # Wait for the processes to terminate
+        self.thread1.join()
+        self.thread2.join()
 
         # Call function to handle closing of the cameras and video
         self.deoperate_cameras()
@@ -564,10 +583,7 @@ class UILabCapture():
         self.canvas.draw()
         
 
-
-
-
-
+# MAIN - Creates a startup window and the main GUI. Passes variables from startup window to the main window
 def main():
 
     # Make a call to the SettingsWindow class which starts the intial prompt screen to set the avtive directory
@@ -597,6 +613,7 @@ def main():
     #Call the build_window to create the main GUI window and starts the GUI
     app.build_window()
 
-
+# Indicates that the python script will be run directly, and not imported by something else; Include an else to handle importing
 if __name__ == '__main__':
     main()
+
