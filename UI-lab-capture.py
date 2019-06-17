@@ -19,7 +19,6 @@ from copy import deepcopy
 import sys
 import traceback
 from PIL import Image, ImageTk
-import multiprocessing
 import signal
 import threading
 
@@ -111,7 +110,8 @@ class UILabCapture():
         self.filepath = active_directory # Active directory path is stored in a local varaible
         self.primary_sn = primary_serial_number # The serial number of the primary Blackfly S camera
         self.fileSplitSize = fss # The size of the file split
-        self.image_queue = Queue.Queue() # Shared queue between processes to save and record frames
+        self.image_queue_primary = Queue.Queue() # Shared queue between threads to save and record frames from the primary camera
+        self.image_queue_secondary = Queue.Queue() # Shared queue between threads to save and record frames from the secondary camera
         self.running_experiment = False # Boolean value to keep track wther or not there is an experiment running currently
  
     # Builds the main GUI window 
@@ -227,6 +227,8 @@ class UILabCapture():
         self.canvas.get_tk_widget().pack(side = "top", fill = "both", expand = True)
         self.canvas.draw()
 
+        #Frame to hold camera images
+
         # Start the window
         self.root.mainloop() 
 
@@ -284,8 +286,7 @@ class UILabCapture():
 
 
     # Handles the setup and initialization of both cameras and the avi video
-    # TODO: Add second camera to test functionality of the primary and secondary triggers.
-    # TODO: Fix output framerate(currently avi video @ 15fps)
+    #TODO: Failing because lens not attatched
     def operate_cameras(self):
         # Get system
         self.system = PySpin.System.GetInstance()
@@ -294,55 +295,64 @@ class UILabCapture():
         # Figure out which is primary and secondary
         if self.cam_list.GetByIndex(0).TLDevice.DeviceSerialNumber() == str(self.primary_sn):
             self.cam_primary = self.cam_list.GetByIndex(0)
-            # self.cam_secondary = self.cam_list.GetByIndex(1)
+            self.cam_secondary = self.cam_list.GetByIndex(1)
         else:
             self.cam_primary = self.cam_list.GetByIndex(1)
-            # self.cam_secondary = self.cam_list.GetByIndex(0)
+            self.cam_secondary = self.cam_list.GetByIndex(0)
  
         # Initialize cameras
         self.cam_primary.Init()
-        # self.cam_secondary.Init()
+        self.cam_secondary.Init()
 
-        #retrieve GenICam nodemap
+        # Retrieve GenICam nodemap
         self.primary_nodemap = self.cam_primary.GetNodeMap()
+        self.secondary_nodemap = self.cam_secondary.GetNodeMap()
 
+        # Retrieve nodemap TLDevice
+        self.primary_nodemaptldevice = self.cam_primary.GetTLDeviceNodeMap()
+        self.secondary_nodemaptldevice = self.cam_secondary.GetTLDeviceNodeMap()
 
-        #Setup the hardware triggers
+        # Setup the hardware triggers
 
         # Set up primary camera trigger
         self.cam_primary.LineSelector.SetValue(PySpin.LineSelector_Line2)
         self.cam_primary.V3_3Enable.SetValue(True)
 
         # Set up secondary camera trigger
-        '''
-        cam_secondary.TriggerMode.SetValue(PySpin.TriggerMode_Off)
-        cam_secondary.TriggerSource.SetValue(PySpin.TriggerSource_Line3)
-        cam_secondary.TriggerOverlap.SetValue(PySpin.TriggerOverlap_ReadOut)
-        cam_secondary.TriggerMode.SetValue(PySpin.TriggerMode_On)
-        '''
+        self.cam_secondary.TriggerMode.SetValue(PySpin.TriggerMode_Off)
+        self.cam_secondary.TriggerSource.SetValue(PySpin.TriggerSource_Line3)
+        self.cam_secondary.TriggerOverlap.SetValue(PySpin.TriggerOverlap_ReadOut)
+        self.cam_secondary.TriggerMode.SetValue(PySpin.TriggerMode_On)
+        
 
         # Set acquisition mode
         self.cam_primary.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
-        #cam_secondary.AcquisitionMode.SetValue(PySpin.AcquisitionMode_SingleFrame)
+        self.cam_secondary.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
 
-        self.cam_primary.AcquisitionFrameRate = 60
         # Start acquisition; note that secondary camera has to be started first so 
         # acquisition of primary camera triggers secondary camera.
-        #cam_secondary.BeginAcquisition()
+        self.cam_secondary.BeginAcquisition()
         self.cam_primary.BeginAcquisition()
 
         #Start the video
 
-        #Create a SpinVideo instance
-        self.avi_video = PySpin.SpinVideo()
+        #Create a SpinVideo instance for both cameras
+        self.avi_video_primary = PySpin.SpinVideo()
+        self.avi_video_secondary = PySpin.SpinVideo()
 
-        #Set filename and options
-        filename = 'SaveToAvi-MJPG-%s' % self.primary_sn
-        option = PySpin.MJPGOption()
-        option.framRate = 60
-        option.quality = 75
-        #Open the recording file
-        self.avi_video.Open(filename, option)
+        #Set filename and options for both videos
+        filename_primary = 'SaveToAvi-MJPG-%s' % self.primary_sn
+        filename_seconday = 'SaveToAvi-MJPG-19061546' 
+        option_primary = PySpin.MJPGOption()
+        option_secondary = PySpin.MJPGOption()
+        option_primary.frameRate = 60
+        option_secondary.frameRate = 60
+        option_primary.quality = 75
+        option_secondary.quality = 75
+
+        #Open the recording file for both camera
+        self.avi_video_primary.Open(filename_primary, option_primary)
+        self.avi_video_secondary.Open(filename_seconday, option_secondary)
 
 
     # Handles the closing and deinitialization of both cameras and the avi video 
@@ -350,48 +360,69 @@ class UILabCapture():
 
         #Wait on processes to finsih up the last of the appending
 
-        #Close the recording file
-        self.avi_video.Close()
+        #Return number of frames dropped
+        print(self.primary_nodemaptldevice.GevFailedPacketCount)
+        print(self.secondary_nodemaptldevice.GevFailedPacketCount)
+
+        #Close the recording files
+        self.avi_video_primary.Close()
+        self.avi_video_secondary.Close()
 
         # Stop acquisition
+        self.cam_secondary.EndAcquisition()
         self.cam_primary.EndAcquisition()
-        #cam_secondary.EndAcquisition()
+
 
         # De-initialize
         self.cam_primary.DeInit()
-        #cam_secondary.DeInit()
+        self.cam_secondary.DeInit()
 
-        #del image_secondary
+        # Delete Assets
         del self.cam_primary
-        #del cam_secondary
+        del self.cam_secondary
         del self.cam_list
 
 
     # While experiment is running, retrieves frames from the camera, puts them into the shared queue, and releses them from the buffer
-    def acquire_frames(self, q, cam):
+    def acquire_frames(self, q_p, q_s, cam_p, cam_s):
         while self.running_experiment:
             try:
-                # Grab frames from buffer
-                buffer_image = cam.GetNextImage()
+                # Grab frames from primary camera's buffer
+                buffer_image_p = cam_p.GetNextImage()
 
-                # Store frames into shared queue
-                q.put(buffer_image)
+                # Grab frames from secondary camera's buffer
+                buffer_image_s = cam_s.GetNextImage()
 
-                # Release images from the buffer 
-                buffer_image.Release()
+                # Store frames into shared queue for primary camera
+                q_p.put(buffer_image_p)
+
+                # Store frames into shared queue for primary camera
+                q_s.put(buffer_image_s)
+
+                # Release images from the buffers 
+                buffer_image_p.Release()
+                buffer_image_s.Release()
+
             except:
                 pass
 
 
     # Using the shared queue and while experiment is running, dequeues frames and appends them to the end of the avi recording
-    def append_to_video(self, q):
+    def append_to_video(self, q_p, q_s):
         while self.running_experiment:
             try:
-                # Grab frames from the shared queue, preferably removing from the queue at the same time
-                queue_image = q.get()
+                # Grab frames from the primary camera's shared queue
+                queue_image_p = q_p.get()
 
-                # Append frames to the avi video
-                self.avi_video.Append(queue_image)
+                # Grab frames from the secondary camera's shared queue
+                queue_image_s = q_s.get()
+
+                # Append frames to the primary camera's avi video
+                self.avi_video_primary.Append(queue_image_p)
+
+                # Append frames to the secondary camera's avi video
+                self.avi_video_secondary.Append(queue_image_s)
+
             except:
                 pass
 
@@ -441,8 +472,8 @@ class UILabCapture():
         self.operate_cameras()
 
         # Start processes to begin the capturing from the Blackfly camera
-        self.thread1 = threading.Thread(target= self.acquire_frames, args=(self.image_queue, self.cam_primary,), daemon= True)
-        self.thread2 = threading.Thread(target= self.append_to_video, args=(self.image_queue, ), daemon= True)
+        self.thread1 = threading.Thread(target= self.acquire_frames, args=(self.image_queue_primary, self.image_queue_secondary, self.cam_primary, self.cam_secondary, ), daemon= True)
+        self.thread2 = threading.Thread(target= self.append_to_video, args=(self.image_queue_primary, self.image_queue_secondary, ), daemon= True)
         self.thread1.start()
         self.thread2.start()
 
@@ -461,12 +492,15 @@ class UILabCapture():
         # Wait for the processes to terminate
         self.thread1.join()
         self.thread2.join()
+        print("Threads joined...")
 
         # Call function to handle closing of the cameras and video
         self.deoperate_cameras()
+        print("Deop'd cameras...")
 
         # Stops the call to update being made in update_gui
         self.root.after_cancel(self.update_after_call_id) 
+        print("stopped update call...")
 
         self.var0.set("0") # Resets voltage being read from the labjack at FIO0
         self.var1.set("0") # Resets voltage being read from the labjack at FIO1
@@ -486,6 +520,7 @@ class UILabCapture():
         self.ax1.set_xlabel('time (s)')
         self.ax1.set_ylabel('amplitude')        
         self.canvas.draw()
+        print("Cleared graph...")
 
         # Resets the scan hz entry
         self.scan_hz.set("Enter desired hz...")
