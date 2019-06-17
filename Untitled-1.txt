@@ -1,0 +1,13 @@
+# Acquire images
+        self.image_primary = self.cam_primary.GetNextImage()
+        #image_secondary = cam_secondary.GetNextImage()
+
+        # Save images
+        self.image_primary.Save('primary.png')
+        #image_secondary.Save('secondary.png')
+
+        image = Image.open('primary.png')
+        photo = ImageTk.PhotoImage(image)
+        img = tk.Label(self.camera_frame, image = photo)
+        img.image = photo
+        img.grid(row = 0, column = 0)
