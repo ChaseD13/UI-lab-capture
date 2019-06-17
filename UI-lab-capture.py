@@ -285,7 +285,6 @@ class UILabCapture():
 
     # Handles the setup and initialization of both cameras and the avi video
     # TODO: Add second camera to test functionality of the primary and secondary triggers.
-    # TODO: Fix output framerate(currently avi video @ 15fps)
     def operate_cameras(self):
         # Get system
         self.system = PySpin.System.GetInstance()
@@ -339,7 +338,7 @@ class UILabCapture():
         #Set filename and options
         filename = 'SaveToAvi-MJPG-%s' % self.primary_sn
         option = PySpin.MJPGOption()
-        option.framRate = 60
+        option.frameRate = 60
         option.quality = 75
         #Open the recording file
         self.avi_video.Open(filename, option)
