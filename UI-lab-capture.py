@@ -276,7 +276,8 @@ class UILabCapture():
 
     # Function to wrtie the data out to a directory
     # Commas used as delimeters, no spaces, new lines indicate next data read
-    # TODO: Format to look like 1_0.txt
+    # TODO: Add time scaling to the output file
+    # TODO: Reformat how data is written out to the file
     def write_to_file(self, name, data_list):
         try:
             # Write the inputs name first
@@ -291,7 +292,7 @@ class UILabCapture():
 
     # Handles the setup and initialization of both cameras and the avi video
     # TODO: Add trigger functionality to align captured frames
-    # TODO: Camera 2 dropped 294 frames at 60fps
+    # NOTE: Camera 2 dropped 294 frames at 60fps; 99 frames at 60 fps;
     def operate_cameras(self):
         # Get system
         self.system = PySpin.System.GetInstance()
@@ -390,7 +391,6 @@ class UILabCapture():
 
 
     # While experiment is running, retrieves frames from the camera, puts them into the shared queue, and releses them from the buffer
-    # TODO: Change frame misses to reflect the difference between frame id number (i.e. 1 -> 5 should add 4 to the counter)
     def acquire_frames(self, q_p, q_s, cam_p, cam_s):
         while self.running_experiment:
             try:
@@ -408,12 +408,12 @@ class UILabCapture():
 
                 # Checks if the frames from the primary camera are sequential; Increments if the frames are not sequential
                 if int(buffer_image_p.GetFrameID()) != (self.prev_frame_id_p + 1):
-                    self.missed_frames_p += 1
+                    self.missed_frames_p += int(buffer_image_p.GetFrameID()) - self.prev_frame_id_p
                 self.prev_frame_id_p = int(buffer_image_p.GetFrameID())
 
                 # Checks if the frames from the secondary camera are sequential; Increments if the frames are not sequential
                 if int(buffer_image_s.GetFrameID()) != (self.prev_frame_id_s + 1):
-                    self.missed_frames_s += 1
+                    self.missed_frames_s += int(buffer_image_s.GetFrameID()) - self.prev_frame_id_s
                 self.prev_frame_id_s = int(buffer_image_s.GetFrameID())
 
                 # Release images from the buffers 
@@ -446,7 +446,7 @@ class UILabCapture():
 
     # A function to handle all updating of values and functions
     # TODO: Add more threads to handle the other updating functions
-    # TODO: Add time scaling to the output file
+    # TODO: Add channel info for output file
     def start_gui(self):
         # The experiment has started running
         self.running_experiment = True
@@ -584,7 +584,6 @@ class UILabCapture():
 
 
     # Animates the graph using a stream of data from the labjack
-    # TODO: Write newly aquired data out to file
     def animate_with_stream(self):
         # Lists for each analog to hold the newly streamed data
         new_data_ain0 = []
