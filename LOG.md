@@ -72,3 +72,8 @@
 - Added simultaneous streaming for two **FLIR Blackfly S** cameras
 - Reliable recording @60 fps
 - Added lost frame tracking using FrameID's
+
+### 6/18
+- Changed frame dropped counter; Now increments based on difference between to non-sequential frames
+- Changed how data stream from **Labjack U3-LV** is exported
+- Added variable to set both cameras FPS 
