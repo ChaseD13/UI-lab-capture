@@ -118,6 +118,7 @@ class UILabCapture():
         self.prev_frame_id_p = -1 # (Primary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
         self.missed_frames_s = 0 # (Secondary) Counter for the number of missed frames during the stream
         self.prev_frame_id_s = -1 # (Secondary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
+        self.camera_fps = 60 # Sets the fps for both cameras
  
     # Builds the main GUI window 
     def build_window(self):
@@ -354,8 +355,8 @@ class UILabCapture():
         filename_seconday = 'SaveToAvi-MJPG-19061546' 
         option_primary = PySpin.MJPGOption()
         option_secondary = PySpin.MJPGOption()
-        option_primary.frameRate = 60
-        option_secondary.frameRate = 60
+        option_primary.frameRate = self.camera_fps
+        option_secondary.frameRate = self.camera_fps
         option_primary.quality = 75
         option_secondary.quality = 75
 
