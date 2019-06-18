@@ -47,10 +47,11 @@ class SettingsWindow():
         #Variables
         self.ad_var = tk.StringVar() #Holds the active directory string.
 
-        self.wd_var = tk.StringVar() #Holds the date string
+        self.wd_var = tk.StringVar() #Holds the working directory ex. "C:\Users\Behavior Scoring\Desktop" or "C://Users/Behavior Scoring/Desktop"
+        self.wd_var.set('C://Users/Behavior Scoring/Desktop/UI-lab-capture')
 
-        self.basefile_var = tk.StringVar() #Holds the Vole number. Assigned by the user.
-
+        self.basefile_var = tk.StringVar() #Holds the basefile name ex. Test.txt
+        
         self.pcamera_var = tk.IntVar() #Holds the serial number for the primary labjack camera
         self.pcamera_var.set(19061331)
 
@@ -259,11 +260,6 @@ class UILabCapture():
     # Update voltage is used to constantly monitor the AIN0 port to see what voltage the port is reciving
     # It is adjusted by the scan_scale variable to scan faster or slower
     def update_voltage(self):
-        # Try to set the update interval equal to the desired Hz converted into milliseconds
-        # try:
-        #     self.update_interval =int((1/self.scan_scale.get())*1000)
-        # except:
-        #     pass
         try:
             self.var0.set(round(self.d.getAIN(0), 3)) # Get and set voltage for port 0
             self.var1.set(round(self.d.getAIN(1), 3)) # Get and set voltage for port 1
@@ -277,25 +273,25 @@ class UILabCapture():
             self.d.streamStop()
             self.update_voltage()
 
-        # self.ani = animation.FuncAnimation(self.fig, self.animate, fargs=self.fargs, interval=self.update_interval)
-
-        #self.root.update() #Update the window
-        #self.root.after(self.update_interval, self.update_voltage) #Schedule for this function to call itself agin after update_interval milliseconds
-
 
     # Function to wrtie the data out to a directory
-    # TODO: Find what data needs to be written out to the directory 
-    def write_to_file(self):
+    # Commas used as delimeters, no spaces, new lines indicate next data read
+    # TODO: Format to look like 1_0.txt
+    def write_to_file(self, name, data_list):
         try:
-            os.makedirs(os.path.dirname(self.filepath), exist_ok=True)
-            with open(self.filepath, "w") as f:
-                f.write("This is test data \n")
-        finally:
-            f.close()
+            # Write the inputs name first
+            self.f.write(name + ",")
+            for i in range(len(data_list)):
+                self.f.write(str(data_list[i]) + ",")
+            self.f.write("\r\n")
+
+        except:
+            pass
 
 
     # Handles the setup and initialization of both cameras and the avi video
     # TODO: Add trigger functionality to align captured frames
+    # TODO: Camera 2 dropped 294 frames at 60fps
     def operate_cameras(self):
         # Get system
         self.system = PySpin.System.GetInstance()
@@ -394,7 +390,7 @@ class UILabCapture():
 
 
     # While experiment is running, retrieves frames from the camera, puts them into the shared queue, and releses them from the buffer
-    # TODO: Fails when try to aquire image using second camera
+    # TODO: Change frame misses to reflect the difference between frame id number (i.e. 1 -> 5 should add 4 to the counter)
     def acquire_frames(self, q_p, q_s, cam_p, cam_s):
         while self.running_experiment:
             try:
@@ -429,7 +425,6 @@ class UILabCapture():
 
 
     # Using the shared queue and while experiment is running, dequeues frames and appends them to the end of the avi recording
-    # TODO: Fails when try to aquire image using second camera
     def append_to_video(self, q_p, q_s):
         while self.running_experiment or not q_p.empty() or not q_s.empty():
             try:
@@ -450,6 +445,8 @@ class UILabCapture():
 
 
     # A function to handle all updating of values and functions
+    # TODO: Add more threads to handle the other updating functions
+    # TODO: Add time scaling to the output file
     def start_gui(self):
         # The experiment has started running
         self.running_experiment = True
@@ -461,7 +458,7 @@ class UILabCapture():
         self.seconds_interval = datetime.datetime.now()
 
         # Set the standard datetime format
-        self.datetimeFormat = '%Y-%m-%d %H:%M:%S.%f'
+        self.datetimeFormat = '%Y-%m-%d %I:%M:%S.%f'
 
         # Convert the given hz into milliseconds
         self.hz_to_mil = int((1/self.scan_hz.get())*1000)
@@ -499,8 +496,26 @@ class UILabCapture():
         self.thread1.start()
         self.thread2.start()
 
-        #Start writing data to a file 
-        # self.write_to_file()
+        # Create the file for writing data out to disk
+
+        # If dne this will create the file at the specified location;
+        os.makedirs(os.path.dirname(self.filepath), exist_ok=True)
+        # Open a file at the selected file path; 
+        self.f = open(self.filepath, "w")
+        
+        # Format data output file
+
+        # Current date 
+        self.f.write(self.start_time.strftime("%m/%d/%Y") + "\r\n")
+
+        #Current time
+        self.f.write(self.start_time.strftime("%I:%M:%S %p") + "\r\n" + "\r\n")
+
+        #Channel Info 
+        self.f.write("Insert channel info here... \r\n \r\n")
+
+        #Labels for the tops of the channels seperated by three tabs
+        self.f.write("Time\t\t\tv0\t\t\tv1\t\t\tv2\t\t\tv3\t\t\tv4\t\t\tv5\t\t\tv6\t\t\tv7\t\t\ty0\t\t\ty1\t\t\ty2\t\t\ty3\t\t\ty4\t\t\ty5\t\t\ty6\t\t\ty7 \r\n")
 
         #Call to update function to begin the animation of the GUI
         self.update_gui()
@@ -540,6 +555,9 @@ class UILabCapture():
         self.ax1.set_ylabel('amplitude')        
         self.canvas.draw()
 
+        # Closes the data file
+        self.f.close()
+
         # Resets the scan hz entry
         self.scan_hz.set("Enter desired hz...")
 
@@ -566,6 +584,7 @@ class UILabCapture():
 
 
     # Animates the graph using a stream of data from the labjack
+    # TODO: Write newly aquired data out to file
     def animate_with_stream(self):
         # Lists for each analog to hold the newly streamed data
         new_data_ain0 = []
@@ -593,7 +612,17 @@ class UILabCapture():
                 break
         self.d.streamStop()
 
-        #Extends on the new data into data
+        # Write the values out to file
+        self.write_to_file('AIN0', new_data_ain0)
+        self.write_to_file('AIN1', new_data_ain1)
+        self.write_to_file('AIN2', new_data_ain2)
+        self.write_to_file('AIN3', new_data_ain3)
+        self.write_to_file('AIN4', new_data_ain4)
+        self.write_to_file('AIN5', new_data_ain5)
+        self.write_to_file('AIN6', new_data_ain6)
+        self.write_to_file('AIN7', new_data_ain7)
+
+        # Extends on the new data into data
         self.data_ain0.extend(new_data_ain0)
         self.data_ain1.extend(new_data_ain1)
         self.data_ain2.extend(new_data_ain2)
@@ -603,7 +632,7 @@ class UILabCapture():
         self.data_ain6.extend(new_data_ain6)
         self.data_ain7.extend(new_data_ain7)
 
-        #Remove older data from the front of the lists
+        # Remove older data from the front of the lists
         self.data_ain0 = self.data_ain0[-self.max_items:]
         self.data_ain1 = self.data_ain1[-self.max_items:]
         self.data_ain2 = self.data_ain2[-self.max_items:]
@@ -613,18 +642,18 @@ class UILabCapture():
         self.data_ain6 = self.data_ain6[-self.max_items:]
         self.data_ain7 = self.data_ain7[-self.max_items:]
 
-        #Plot the array with new information on the graph 
+        # Plot the array with new information on the graph 
         self.ax1.clear()
 
-        #Set fixed axis values
-        #self.ax1.set_xlim([0,2])
+        # Set fixed axis values
+        # self.ax1.set_xlim([0,2])
         self.ax1.set_ylim([-.5,5])
 
-        #Label axes
+        # Label axes
         self.ax1.set_xlabel('time (s)')
         self.ax1.set_ylabel('amplitude')
 
-        #Plot the new data for each analog
+        # Plot the new data for each analog
         self.ax1.plot(self.time_inc, self.data_ain0, label = 'AIN0')
         self.ax1.plot(self.time_inc, self.data_ain1, label = 'AIN1')
         self.ax1.plot(self.time_inc, self.data_ain2, label = 'AIN2')
@@ -634,14 +663,14 @@ class UILabCapture():
         self.ax1.plot(self.time_inc, self.data_ain6, label = 'AIN6')
         self.ax1.plot(self.time_inc, self.data_ain7, label = 'AIN7')
 
-        #Create a legend for each analog to make dta tracking easier
+        # Create a legend for each analog to make dta tracking easier
         self.ax1.legend()
 
-        #Display the new graph
+        # Display the new graph
         self.canvas.draw()
     
 
-    #Handles an interrupt made during an experiment
+    # Handles an interrupt made during an experiment
     def on_closing(self):
         if self.running_experiment:
             self.stop_gui()
