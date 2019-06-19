@@ -276,16 +276,21 @@ class UILabCapture():
 
     # Function to wrtie the data out to a directory
     # Commas used as delimeters, no spaces, new lines indicate next data read
-    # TODO: Add time scaling to the output file
-    # TODO: Reformat how data is written out to the file
-    def write_to_file(self, name, data_list):
+    def write_to_file(self, data_list):
         try:
-            # Write the inputs name first
-            self.f.write(name + ",")
-            for i in range(len(data_list)):
-                self.f.write(str(data_list[i]) + ",")
-            self.f.write("\r\n")
-
+            # Increments vertically
+            for i in range(len(data_list[0])):
+                # Increments horizontally
+                for j in range(len(data_list)):
+                    # If not last list, print with with tabs
+                    if j != (len(data_list) - 1):
+                        # self.f.write(str(round(data_list[j][i], 6)) + "\r\t")
+                        self.f.write('{:.6f}'.format(round(data_list[j][i], 6)) + "\t")
+                    # Else print with no tabs and end line
+                    else:
+                        #self.f.write(str(round(data_list[j][i], 6)))
+                        self.f.write('{:.6f}'.format(round(data_list[j][i], 6)))
+                        self.f.write("\r\n")
         except:
             pass
 
@@ -455,13 +460,16 @@ class UILabCapture():
         self.start_time = datetime.datetime.now()
 
         # Update counter for the graph to keep measurements in time of one second
-        self.seconds_interval = datetime.datetime.now()
+        self.curtime = 0.000000
 
         # Set the standard datetime format
         self.datetimeFormat = '%Y-%m-%d %I:%M:%S.%f'
 
+        # Time between scans in seconds
+        self.tbs = 1.0/self.scan_hz.get()
+
         # Convert the given hz into milliseconds
-        self.hz_to_mil = int((1/self.scan_hz.get())*1000)
+        self.hz_to_mil = int(self.tbs * 1000)
 
         # Max items in Labjack values list = Twice the number of events per second
         self.max_items = 2 * self.scan_hz.get()
@@ -493,6 +501,7 @@ class UILabCapture():
         # Start processes to begin the capturing from the Blackfly camera
         self.thread1 = threading.Thread(target= self.acquire_frames, args=(self.image_queue_primary, self.image_queue_secondary, self.cam_primary, self.cam_secondary, ), daemon= True)
         self.thread2 = threading.Thread(target= self.append_to_video, args=(self.image_queue_primary, self.image_queue_secondary, ), daemon= True)
+        self.thread3 = threading.Thread(target= self.animate_with_stream, daemon= True)
         self.thread1.start()
         self.thread2.start()
 
@@ -515,7 +524,7 @@ class UILabCapture():
         self.f.write("Insert channel info here... \r\n \r\n")
 
         #Labels for the tops of the channels seperated by three tabs
-        self.f.write("Time\t\t\tv0\t\t\tv1\t\t\tv2\t\t\tv3\t\t\tv4\t\t\tv5\t\t\tv6\t\t\tv7\t\t\ty0\t\t\ty1\t\t\ty2\t\t\ty3\t\t\ty4\t\t\ty5\t\t\ty6\t\t\ty7 \r\n")
+        self.f.write("Time\t\t   v0\t\t   v1\t\t   v2\t\t   v3\t\t   v4\t\t   v5\t\t   v6\t\t   v7\t\t   y0\t\t   y1\t\t   y2\t\t   y3\t\t   y4\t\t   y5\t\t   y6\t\t   y7 \r\n")
 
         #Call to update function to begin the animation of the GUI
         self.update_gui()
@@ -595,6 +604,8 @@ class UILabCapture():
         new_data_ain6 = []
         new_data_ain7 = []
 
+        times = []
+
         # Stream in X hz events/second worth of data and extend it into the new data lists using a stream
         self.d.streamStart()
         for r in self.d.streamData():
@@ -607,19 +618,26 @@ class UILabCapture():
                 new_data_ain5.extend(r['AIN5'])
                 new_data_ain6.extend(r['AIN6'])
                 new_data_ain7.extend(r['AIN7'])
+
+                times = [self.curtime + t * self.tbs for t in (range(len(new_data_ain0)))]
             if len(new_data_ain0) >= self.scan_hz.get():
                 break
         self.d.streamStop()
 
+        self.curtime = times[-1] + self.tbs # The current time for the next set of scans
+
+        self.data = [times, new_data_ain0, new_data_ain1, new_data_ain2, new_data_ain3, new_data_ain4, new_data_ain5,new_data_ain6, new_data_ain7]
+
         # Write the values out to file
-        self.write_to_file('AIN0', new_data_ain0)
-        self.write_to_file('AIN1', new_data_ain1)
-        self.write_to_file('AIN2', new_data_ain2)
-        self.write_to_file('AIN3', new_data_ain3)
-        self.write_to_file('AIN4', new_data_ain4)
-        self.write_to_file('AIN5', new_data_ain5)
-        self.write_to_file('AIN6', new_data_ain6)
-        self.write_to_file('AIN7', new_data_ain7)
+        # self.write_to_file('AIN0', new_data_ain0)
+        # self.write_to_file('AIN1', new_data_ain1)
+        # self.write_to_file('AIN2', new_data_ain2)
+        # self.write_to_file('AIN3', new_data_ain3)
+        # self.write_to_file('AIN4', new_data_ain4)
+        # self.write_to_file('AIN5', new_data_ain5)
+        # self.write_to_file('AIN6', new_data_ain6)
+        # self.write_to_file('AIN7', new_data_ain7)
+        self.write_to_file(self.data)
 
         # Extends on the new data into data
         self.data_ain0.extend(new_data_ain0)
