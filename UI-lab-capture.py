@@ -24,6 +24,11 @@ import threading
 import gc
 
 
+# NOTE: Scaling functionality for labjack data not neccessary at the moment
+# NOTE: Channel info not neccessary at the moment
+# NOTE: Camera preview not neccessary at the moment
+
+
 # Add funtions purpose here....
 # Properties: now, ad_var
 # Functions: prompt_window, update_window, submit_ad
@@ -341,6 +346,12 @@ class UILabCapture():
         self.cam_primary.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
         self.cam_secondary.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
 
+        # Set aquisition rate to desired fps for both cameras
+        self.cam_primary.AcquisitionFrameRateEnable.SetValue(True)
+        self.cam_primary.AcquisitionFrameRate.SetValue(self.camera_fps)
+        self.cam_secondary.AcquisitionFrameRateEnable.SetValue(True)
+        self.cam_secondary.AcquisitionFrameRate.SetValue(self.camera_fps)
+
         # Start acquisition; note that secondary camera has to be started first so 
         # acquisition of primary camera triggers secondary camera.
         self.cam_secondary.BeginAcquisition()
@@ -428,12 +439,12 @@ class UILabCapture():
                 video.Append(queue_image)
 
             except:
-                pass
+                print("Image not appended")
+                
 
 
     # A function to handle all updating of values and functions
     # TODO: Add more threads to handle the other updating functions
-    # TODO: Add channel info for output file
     # TODO: Figure out why cameras are recording at different lengths
     def start_gui(self):
         # The experiment has started running
