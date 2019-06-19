@@ -11,3 +11,55 @@
         img = tk.Label(self.camera_frame, image = photo)
         img.image = photo
         img.grid(row = 0, column = 0)
+
+    # While experiment is running, retrieves frames from the camera, puts them into the shared queue, and releses them from the buffer
+    # def acquire_frames(self, q_p, q_s, cam_p, cam_s):
+    #     while self.running_experiment:
+    #         try:
+    #             # Grab frames from primary camera's buffer
+    #             buffer_image_p = cam_p.GetNextImage()
+
+    #             # Grab frames from secondary camera's buffer
+    #             buffer_image_s = cam_s.GetNextImage()
+
+    #             # Store frames into shared queue for primary camera
+    #             q_p.put(buffer_image_p)
+
+    #             # Store frames into shared queue for secondary camera
+    #             q_s.put(buffer_image_s)
+
+    #             # Checks if the frames from the primary camera are sequential; Increments if the frames are not sequential
+    #             if int(buffer_image_p.GetFrameID()) != (self.prev_frame_id_p + 1):
+    #                 self.missed_frames_p += int(buffer_image_p.GetFrameID()) - self.prev_frame_id_p
+    #             self.prev_frame_id_p = int(buffer_image_p.GetFrameID())
+
+    #             # Checks if the frames from the secondary camera are sequential; Increments if the frames are not sequential
+    #             if int(buffer_image_s.GetFrameID()) != (self.prev_frame_id_s + 1):
+    #                 self.missed_frames_s += int(buffer_image_s.GetFrameID()) - self.prev_frame_id_s
+    #             self.prev_frame_id_s = int(buffer_image_s.GetFrameID())
+
+    #             # Release images from the buffers 
+    #             buffer_image_p.Release()
+    #             buffer_image_s.Release()
+
+    #         except:
+    #             pass
+
+
+    # def append_to_video(self, q_p, q_s):
+    #     while self.running_experiment or not q_p.empty() or not q_s.empty():
+    #         try:
+    #             # Grab frames from the primary camera's shared queue
+    #             queue_image_p = q_p.get()
+
+    #             # Grab frames from the secondary camera's shared queue
+    #             queue_image_s = q_s.get()
+
+    #             # Append frames to the primary camera's avi video
+    #             self.avi_video_primary.Append(queue_image_p)
+
+    #             # Append frames to the secondary camera's avi video
+    #             self.avi_video_secondary.Append(queue_image_s)
+
+    #         except:
+    #             pass

@@ -93,7 +93,7 @@ class SettingsWindow():
 
     #Function that updates 
     def update_window(self):
-        self.ad_var.set(self.wd_var.get() + "/" + self.basefile_var.get() + ".txt")
+        self.ad_var.set(self.wd_var.get() + "/" + self.basefile_var.get() + ".dat")
         self.after_event = self.root.after(5, self.update_window)
         self.root.update()
 
@@ -290,7 +290,7 @@ class UILabCapture():
                     else:
                         #self.f.write(str(round(data_list[j][i], 6)))
                         self.f.write('{:.6f}'.format(round(data_list[j][i], 6)))
-                        self.f.write("\r\n")
+                        self.f.write("\n")
         except:
             pass
 
@@ -396,54 +396,36 @@ class UILabCapture():
 
 
     # While experiment is running, retrieves frames from the camera, puts them into the shared queue, and releses them from the buffer
-    def acquire_frames(self, q_p, q_s, cam_p, cam_s):
+    def acquire_frames(self, q, cam, missed_frames, prev_frame_id):
         while self.running_experiment:
             try:
-                # Grab frames from primary camera's buffer
-                buffer_image_p = cam_p.GetNextImage()
+                # Grab frames from camera's buffer
+                buffer_image = cam.GetNextImage()
 
-                # Grab frames from secondary camera's buffer
-                buffer_image_s = cam_s.GetNextImage()
+                # Store frames into shared queue for camera
+                q.put(buffer_image)
 
-                # Store frames into shared queue for primary camera
-                q_p.put(buffer_image_p)
-
-                # Store frames into shared queue for secondary camera
-                q_s.put(buffer_image_s)
-
-                # Checks if the frames from the primary camera are sequential; Increments if the frames are not sequential
-                if int(buffer_image_p.GetFrameID()) != (self.prev_frame_id_p + 1):
-                    self.missed_frames_p += int(buffer_image_p.GetFrameID()) - self.prev_frame_id_p
-                self.prev_frame_id_p = int(buffer_image_p.GetFrameID())
-
-                # Checks if the frames from the secondary camera are sequential; Increments if the frames are not sequential
-                if int(buffer_image_s.GetFrameID()) != (self.prev_frame_id_s + 1):
-                    self.missed_frames_s += int(buffer_image_s.GetFrameID()) - self.prev_frame_id_s
-                self.prev_frame_id_s = int(buffer_image_s.GetFrameID())
+                # Checks if the frames from the camera are sequential; Increments if the frames are not sequential
+                if int(buffer_image.GetFrameID()) != (prev_frame_id + 1):
+                    missed_frames += int(buffer_image.GetFrameID()) - prev_frame_id
+                prev_frame_id = int(buffer_image.GetFrameID())
 
                 # Release images from the buffers 
-                buffer_image_p.Release()
-                buffer_image_s.Release()
+                buffer_image.Release()
 
             except:
                 pass
 
 
     # Using the shared queue and while experiment is running, dequeues frames and appends them to the end of the avi recording
-    def append_to_video(self, q_p, q_s):
-        while self.running_experiment or not q_p.empty() or not q_s.empty():
+    def append_to_video(self, q, video):
+        while self.running_experiment or not q.empty():
             try:
                 # Grab frames from the primary camera's shared queue
-                queue_image_p = q_p.get()
+                queue_image = q.get()
 
-                # Grab frames from the secondary camera's shared queue
-                queue_image_s = q_s.get()
-
-                # Append frames to the primary camera's avi video
-                self.avi_video_primary.Append(queue_image_p)
-
-                # Append frames to the secondary camera's avi video
-                self.avi_video_secondary.Append(queue_image_s)
+                # Append frames to the camera's avi video
+                video.Append(queue_image)
 
             except:
                 pass
@@ -452,6 +434,7 @@ class UILabCapture():
     # A function to handle all updating of values and functions
     # TODO: Add more threads to handle the other updating functions
     # TODO: Add channel info for output file
+    # TODO: Figure out why cameras are recording at different lengths
     def start_gui(self):
         # The experiment has started running
         self.running_experiment = True
@@ -499,11 +482,14 @@ class UILabCapture():
         self.operate_cameras()
 
         # Start processes to begin the capturing from the Blackfly camera
-        self.thread1 = threading.Thread(target= self.acquire_frames, args=(self.image_queue_primary, self.image_queue_secondary, self.cam_primary, self.cam_secondary, ), daemon= True)
-        self.thread2 = threading.Thread(target= self.append_to_video, args=(self.image_queue_primary, self.image_queue_secondary, ), daemon= True)
-        self.thread3 = threading.Thread(target= self.animate_with_stream, daemon= True)
-        self.thread1.start()
-        self.thread2.start()
+        self.thread1_p = threading.Thread(target= self.acquire_frames, args=(self.image_queue_primary,  self.cam_primary, self.missed_frames_p, self.prev_frame_id_p, ), daemon= True)
+        self.thread2_p = threading.Thread(target= self.append_to_video, args=(self.image_queue_primary, self.avi_video_primary, ), daemon= True)
+        self.thread1_s = threading.Thread(target= self.acquire_frames, args=(self.image_queue_secondary, self.cam_secondary, self.missed_frames_s, self.prev_frame_id_s, ), daemon= True)
+        self.thread2_s = threading.Thread(target= self.append_to_video, args=(self.image_queue_secondary, self.avi_video_secondary, ), daemon= True)
+        self.thread1_p.start()
+        self.thread2_p.start()
+        self.thread1_s.start()
+        self.thread2_s.start()
 
         # Create the file for writing data out to disk
 
@@ -515,16 +501,20 @@ class UILabCapture():
         # Format data output file
 
         # Current date 
-        self.f.write(self.start_time.strftime("%m/%d/%Y") + "\r\n")
+        self.f.write(self.start_time.strftime("%m/%d/%Y") + "\n")
 
-        #Current time
-        self.f.write(self.start_time.strftime("%I:%M:%S %p") + "\r\n" + "\r\n")
+        # Current time
+        self.f.write(self.start_time.strftime("%I:%M:%S %p") + "\n" + "\n")
 
-        #Channel Info 
-        self.f.write("Insert channel info here... \r\n \r\n")
+        # Channel Info
+        for i in range(8):
+            self.f.write("Insert channel info here... \n")
+        
+        # Add Spacer
+        self.f.write("\n")
 
         #Labels for the tops of the channels seperated by three tabs
-        self.f.write("Time\t\t   v0\t\t   v1\t\t   v2\t\t   v3\t\t   v4\t\t   v5\t\t   v6\t\t   v7\t\t   y0\t\t   y1\t\t   y2\t\t   y3\t\t   y4\t\t   y5\t\t   y6\t\t   y7 \r\n")
+        self.f.write("Time\t\t   v0\t\t   v1\t\t   v2\t\t   v3\t\t   v4\t\t   v5\t\t   v6\t\t   v7\t\t   y0\t\t   y1\t\t   y2\t\t   y3\t\t   y4\t\t   y5\t\t   y6\t\t   y7 \n")
 
         #Call to update function to begin the animation of the GUI
         self.update_gui()
@@ -536,8 +526,10 @@ class UILabCapture():
         self.running_experiment = False
 
         # Wait for the processes to terminate
-        self.thread1.join()
-        self.thread2.join()
+        self.thread1_p.join()
+        self.thread1_s.join()
+        self.thread2_p.join()
+        self.thread2_s.join()
 
         # Call function to handle closing of the cameras and video
         self.deoperate_cameras()
