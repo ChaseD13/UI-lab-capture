@@ -19,9 +19,13 @@ from copy import deepcopy
 import sys
 import traceback
 from PIL import Image, ImageTk
-import multiprocessing
 import signal
 import threading
+import csv
+
+
+# NOTE: Scaling functionality for labjack data not neccessary at the moment
+# NOTE: Channel info not neccessary at the moment
 
 
 # Add funtions purpose here....
@@ -47,10 +51,11 @@ class SettingsWindow():
         #Variables
         self.ad_var = tk.StringVar() #Holds the active directory string.
 
-        self.wd_var = tk.StringVar() #Holds the date string
+        self.wd_var = tk.StringVar() #Holds the working directory ex. "C:\Users\Behavior Scoring\Desktop" or "C://Users/Behavior Scoring/Desktop"
+        self.wd_var.set('C://Users/Behavior Scoring/Desktop/UI-lab-capture')
 
-        self.basefile_var = tk.StringVar() #Holds the Vole number. Assigned by the user.
-
+        self.basefile_var = tk.StringVar() #Holds the basefile name ex. Test.txt
+        
         self.pcamera_var = tk.IntVar() #Holds the serial number for the primary labjack camera
         self.pcamera_var.set(19061331)
 
@@ -92,7 +97,7 @@ class SettingsWindow():
 
     #Function that updates 
     def update_window(self):
-        self.ad_var.set(self.wd_var.get() + "/" + self.basefile_var.get() + ".txt")
+        self.ad_var.set(self.wd_var.get() + "/" + self.basefile_var.get() + ".dat")
         self.after_event = self.root.after(5, self.update_window)
         self.root.update()
 
@@ -111,8 +116,15 @@ class UILabCapture():
         self.filepath = active_directory # Active directory path is stored in a local varaible
         self.primary_sn = primary_serial_number # The serial number of the primary Blackfly S camera
         self.fileSplitSize = fss # The size of the file split
-        self.image_queue = Queue.Queue() # Shared queue between processes to save and record frames
+        self.image_queue_primary = Queue.Queue() # Shared queue between threads to save and record frames from the primary camera
+        self.image_queue_secondary = Queue.Queue() # Shared queue between threads to save and record frames from the secondary camera
         self.running_experiment = False # Boolean value to keep track wther or not there is an experiment running currently
+        self.missed_frames_p = 0 # (Primary) Counter for the number of missed frames during the stream
+        self.prev_frame_id_p = -1 # (Primary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
+        self.missed_frames_s = 0 # (Secondary) Counter for the number of missed frames during the stream
+        self.prev_frame_id_s = -1 # (Secondary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
+        self.frame_id_queue_p = Queue.Queue() # Holds the sequential frame ids from the primary camera
+        self.frame_id_queue_s = Queue.Queue() # Holds the sequential frame ids from the secondary camera
  
     # Builds the main GUI window 
     def build_window(self):
@@ -162,6 +174,7 @@ class UILabCapture():
         self.cameras = tk.Label(self.camera_frame, text = "Space for Cameras", bg = "orange", height = 20)
         self.cameras.pack(fill = "both")
 
+
         # Labels for the FIO 0-7 ports on the labjacks
         tk.Label(self.labjack_values, text = "AIN0: ").pack()
         self.ain_zero = tk.Label(self.labjack_values, textvariable = self.var0)
@@ -196,17 +209,14 @@ class UILabCapture():
         self.ain_seven.pack()
 
 
-
-        # Scales
-        # Scale for users to adjust the scan speed in Hz
-        # self.scan_scale = tk.Scale(self.labjack_values, from_=0.1, to=100, orient = tk.HORIZONTAL, label = "Scan rate (Hz)", length = 500, resolution = 1)
-        # self.scan_scale.grid(row = 3, column = 0, columnspan = 8)
-        # self.scan_scale.set(1)
-
-
         self.scan_hz = tk.IntVar()
-        self.scan_hz.set("Enter desired hz...")
+        self.scan_hz.set("Labjack Scan rate...")
         self.scan_space = tk.Entry(self.labjack_values, textvariable = self.scan_hz)
+        self.scan_space.pack(padx = 10, pady = 10)
+
+        self.frame_rate_input = tk.IntVar()
+        self.frame_rate_input.set("Camera FPS...")
+        self.scan_space = tk.Entry(self.labjack_values, textvariable = self.frame_rate_input)
         self.scan_space.pack(padx = 10, pady = 10)
 
         # Input for the number of channels
@@ -219,6 +229,12 @@ class UILabCapture():
         tk.Button(self.labjack_values, text = "Start Experiment", command = self.start_gui).pack(padx = 10, pady = 10)
         tk.Button(self.labjack_values, text = "Stop Experiment", command = self.stop_gui).pack(padx = 10, pady = 10)
 
+        # Total time experied
+        self.time_label = tk.IntVar()
+        self.time_label.set('00:00')
+        tk.Label(self.labjack_values, text= 'Experiment Time:').pack(padx = 10, pady = 10)
+        tk.Label(self.labjack_values, textvariable= self.time_label).pack(padx = 10, pady = 10)
+
 
         self.f = figure.Figure(figsize = (5,4))
 
@@ -226,6 +242,11 @@ class UILabCapture():
         self.canvas = FigureCanvasTkAgg(self.f, self.scrolling_graph)
         self.canvas.get_tk_widget().pack(side = "top", fill = "both", expand = True)
         self.canvas.draw()
+
+        #Frame to hold camera images
+
+        #Handle interrupt 
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         # Start the window
         self.root.mainloop() 
@@ -248,11 +269,6 @@ class UILabCapture():
     # Update voltage is used to constantly monitor the AIN0 port to see what voltage the port is reciving
     # It is adjusted by the scan_scale variable to scan faster or slower
     def update_voltage(self):
-        # Try to set the update interval equal to the desired Hz converted into milliseconds
-        # try:
-        #     self.update_interval =int((1/self.scan_scale.get())*1000)
-        # except:
-        #     pass
         try:
             self.var0.set(round(self.d.getAIN(0), 3)) # Get and set voltage for port 0
             self.var1.set(round(self.d.getAIN(1), 3)) # Get and set voltage for port 1
@@ -262,29 +278,34 @@ class UILabCapture():
             self.var5.set(round(self.d.getAIN(5), 3)) # Get and set voltage for port 5
             self.var6.set(round(self.d.getAIN(6), 3)) # Get and set voltage for port 6
             self.var7.set(round(self.d.getAIN(7), 3)) # Get and set voltage for port 7
-        except: 
-            self.d.streamStop()
-            self.update_voltage()
-
-        # self.ani = animation.FuncAnimation(self.fig, self.animate, fargs=self.fargs, interval=self.update_interval)
-
-        #self.root.update() #Update the window
-        #self.root.after(self.update_interval, self.update_voltage) #Schedule for this function to call itself agin after update_interval milliseconds
+        except Exception as ex: 
+            print(ex)
 
 
     # Function to wrtie the data out to a directory
-    # TODO: Find what data needs to be written out to the directory 
-    def write_to_file(self):
+    # Commas used as delimeters, no spaces, new lines indicate next data read
+    def write_to_file(self, data_list):
         try:
-            os.makedirs(os.path.dirname(self.filepath), exist_ok=True)
-            with open(self.filepath, "w") as f:
-                f.write("This is test data \n")
-        finally:
-            f.close()
+            # Increments vertically
+            for i in range(len(data_list[-1])):
+                # Increments horizontally
+                for j in range(len(data_list)):
+                    # If not last list, print with with tabs
+                    if j != (len(data_list) - 1):
+                        # self.f.write(str(round(data_list[j][i], 6)) + "\r\t")
+                        self.f.write('{:.6f}'.format(round(data_list[j][i], 6)) + "\t")
+                    # Else print with no tabs and end line
+                    else:
+                        #self.f.write(str(round(data_list[j][i], 6)))
+                        self.f.write('{:.6f}'.format(round(data_list[j][i], 6)))
+                        self.f.write("\n")
+        except:
+            pass
 
 
     # Handles the setup and initialization of both cameras and the avi video
-    # TODO: Add second camera to test functionality of the primary and secondary triggers.
+    # TODO: Add trigger functionality to align captured frames
+    # NOTE: Camera 2 dropped 294 frames at 60fps; 99 frames at 60 fps;
     def operate_cameras(self):
         # Get system
         self.system = PySpin.System.GetInstance()
@@ -293,107 +314,166 @@ class UILabCapture():
         # Figure out which is primary and secondary
         if self.cam_list.GetByIndex(0).TLDevice.DeviceSerialNumber() == str(self.primary_sn):
             self.cam_primary = self.cam_list.GetByIndex(0)
-            # self.cam_secondary = self.cam_list.GetByIndex(1)
+            self.cam_secondary = self.cam_list.GetByIndex(1)
         else:
             self.cam_primary = self.cam_list.GetByIndex(1)
-            # self.cam_secondary = self.cam_list.GetByIndex(0)
+            self.cam_secondary = self.cam_list.GetByIndex(0)
  
         # Initialize cameras
         self.cam_primary.Init()
-        # self.cam_secondary.Init()
+        self.cam_secondary.Init()
 
-        #retrieve GenICam nodemap
+        # Retrieve GenICam nodemap
         self.primary_nodemap = self.cam_primary.GetNodeMap()
+        self.secondary_nodemap = self.cam_secondary.GetNodeMap()
 
+        # Retrieve nodemap TLDevice
+        self.primary_nodemaptldevice = self.cam_primary.GetTLDeviceNodeMap()
+        self.secondary_nodemaptldevice = self.cam_secondary.GetTLDeviceNodeMap()
 
-        #Setup the hardware triggers
+        # Setup the hardware triggers
+        # NOTE: Turned off for now because gpio pins not connected
 
-        # Set up primary camera trigger
-        self.cam_primary.LineSelector.SetValue(PySpin.LineSelector_Line2)
-        self.cam_primary.V3_3Enable.SetValue(True)
+        # # Set up primary camera trigger
+        # self.cam_primary.LineSelector.SetValue(PySpin.LineSelector_Line2)
+        # self.cam_primary.V3_3Enable.SetValue(True)
 
         # Set up secondary camera trigger
-        '''
-        cam_secondary.TriggerMode.SetValue(PySpin.TriggerMode_Off)
-        cam_secondary.TriggerSource.SetValue(PySpin.TriggerSource_Line3)
-        cam_secondary.TriggerOverlap.SetValue(PySpin.TriggerOverlap_ReadOut)
-        cam_secondary.TriggerMode.SetValue(PySpin.TriggerMode_On)
-        '''
+        self.cam_secondary.TriggerMode.SetValue(PySpin.TriggerMode_Off)
+        # self.cam_secondary.TriggerSource.SetValue(PySpin.TriggerSource_Line3)
+        # self.cam_secondary.TriggerOverlap.SetValue(PySpin.TriggerOverlap_ReadOut)
+        # self.cam_secondary.TriggerMode.SetValue(PySpin.TriggerMode_On)
+        
 
         # Set acquisition mode
         self.cam_primary.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
-        #cam_secondary.AcquisitionMode.SetValue(PySpin.AcquisitionMode_SingleFrame)
+        self.cam_secondary.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
 
-        self.cam_primary.AcquisitionFrameRate = 60
+        # Set aquisition rate to desired fps for both cameras
+        self.cam_primary.AcquisitionFrameRateEnable.SetValue(True)
+        self.cam_primary.AcquisitionFrameRate.SetValue(self.frame_rate_input.get())
+        self.cam_secondary.AcquisitionFrameRateEnable.SetValue(True)
+        self.cam_secondary.AcquisitionFrameRate.SetValue(self.frame_rate_input.get())
+
         # Start acquisition; note that secondary camera has to be started first so 
         # acquisition of primary camera triggers secondary camera.
-        #cam_secondary.BeginAcquisition()
+        self.cam_secondary.BeginAcquisition()
         self.cam_primary.BeginAcquisition()
 
         #Start the video
 
-        #Create a SpinVideo instance
-        self.avi_video = PySpin.SpinVideo()
+        #Create a SpinVideo instance for both cameras
+        self.avi_video_primary = PySpin.SpinVideo()
+        self.avi_video_secondary = PySpin.SpinVideo()
 
-        #Set filename and options
-        filename = 'SaveToAvi-MJPG-%s' % self.primary_sn
-        option = PySpin.MJPGOption()
-        option.frameRate = 60
-        option.quality = 75
-        #Open the recording file
-        self.avi_video.Open(filename, option)
+
+        #Set filename and options for both videos
+        filename_primary = 'SaveToAvi-MJPG-%s' % self.primary_sn
+        filename_seconday = 'SaveToAvi-MJPG-19061546' 
+        option_primary = PySpin.MJPGOption()
+        option_secondary = PySpin.MJPGOption()
+        option_primary.frameRate = self.frame_rate_input.get()
+        option_secondary.frameRate = self.frame_rate_input.get()
+        option_primary.quality = 75
+        option_secondary.quality = 75
+
+        #Open the recording file for both camera
+        self.avi_video_primary.Open(filename_primary, option_primary)
+        self.avi_video_secondary.Open(filename_seconday, option_secondary)
 
 
     # Handles the closing and deinitialization of both cameras and the avi video 
     def deoperate_cameras(self):
 
-        #Wait on processes to finsih up the last of the appending
+        # Print the number of dropped frames
+        print("Total missed frames(Primary): %d" % self.missed_frames_p)
+        print("Total missed frames(Secondary): %d" % self.missed_frames_s)
 
-        #Close the recording file
-        self.avi_video.Close()
+        # Print total number of captured frames
+        print("Total frames captured(Primary): %d" % self.prev_frame_id_p)
+        print("Total frames captured(Secondary): %d" % self.prev_frame_id_s)
+
+        # If dne this will create the file at the specified location;
+        os.makedirs(os.path.dirname('C://Users/Behavior Scoring/Desktop/UI-lab-capture/Additional docs/primary_frames.csv'), exist_ok=True)
+        # Open a file at the selected file path; 
+        self.file_p = open('C://Users/Behavior Scoring/Desktop/UI-lab-capture/Additional docs/primary_frames.csv', "w")
+        # If dne this will create the file at the specified location;
+        os.makedirs(os.path.dirname('C://Users/Behavior Scoring/Desktop/UI-lab-capture/Additional docs/secondary_frames.csv'), exist_ok=True)
+        # Open a file at the selected file path; 
+        self.file_s = open('C://Users/Behavior Scoring/Desktop/UI-lab-capture/Additional docs/secondary_frames.csv', "w")
+        
+        # Prints the queue of frime ids out to disk(Primary)
+        for i in range(self.frame_id_queue_p.qsize()):
+            self.file_p.write(str(self.frame_id_queue_p.get()) + '\n')
+
+        # Prints the queue of frime ids out to disk(Secondary)
+        for i in range(self.frame_id_queue_s.qsize()):
+            self.file_s.write(str(self.frame_id_queue_s.get()) + '\n')
+
+        self.file_p.close()
+        self.file_s.close()
+
+        #Close the recording files
+        self.avi_video_primary.Close()
+        self.avi_video_secondary.Close()
 
         # Stop acquisition
+        self.cam_secondary.EndAcquisition()
         self.cam_primary.EndAcquisition()
-        #cam_secondary.EndAcquisition()
+
 
         # De-initialize
         self.cam_primary.DeInit()
-        #cam_secondary.DeInit()
+        self.cam_secondary.DeInit()
 
-        #del image_secondary
+        # Delete Assets
         del self.cam_primary
-        #del cam_secondary
+        del self.cam_secondary
         del self.cam_list
 
 
     # While experiment is running, retrieves frames from the camera, puts them into the shared queue, and releses them from the buffer
-    def acquire_frames(self, q, cam):
+    def acquire_frames(self, q, cam, letter):
         while self.running_experiment:
             try:
-                # Grab frames from buffer
+                # Grab frames from camera's buffer
                 buffer_image = cam.GetNextImage()
 
-                # Store frames into shared queue
+                # Store frames into shared queue for camera
                 q.put(buffer_image)
 
-                # Release images from the buffer 
+                # Checks if the frames from the camera are sequential; Increments if the frames are not sequential
+                if letter == 'p':
+                    if int(buffer_image.GetFrameID()) != (self.prev_frame_id_p + 1):
+                        self.missed_frames_p += int(buffer_image.GetFrameID()) - self.prev_frame_id_p
+                    self.prev_frame_id_p = int(buffer_image.GetFrameID())
+                    self.frame_id_queue_p.put(int(buffer_image.GetFrameID()))
+                else:
+                    if int(buffer_image.GetFrameID()) != (self.prev_frame_id_s + 1):
+                        self.missed_frames_s += int(buffer_image.GetFrameID()) - self.prev_frame_id_s
+                    self.prev_frame_id_s = int(buffer_image.GetFrameID())
+                    self.frame_id_queue_s.put(int(buffer_image.GetFrameID()))
+
+                # Release images from the buffers 
                 buffer_image.Release()
-            except:
-                pass
+
+            except Exception as ex:
+                print(ex)
 
 
     # Using the shared queue and while experiment is running, dequeues frames and appends them to the end of the avi recording
-    def append_to_video(self, q):
-        while self.running_experiment:
+    def append_to_video(self, q, video):
+        while self.running_experiment or not q.empty():
             try:
-                # Grab frames from the shared queue, preferably removing from the queue at the same time
+                # Grab frames from the primary camera's shared queue
                 queue_image = q.get()
 
-                # Append frames to the avi video
-                self.avi_video.Append(queue_image)
-            except:
-                pass
+                # Append frames to the camera's avi video
+                video.Append(queue_image)
 
+            except Exception as ex:
+                print(ex)
+                
 
     # A function to handle all updating of values and functions
     def start_gui(self):
@@ -404,13 +484,16 @@ class UILabCapture():
         self.start_time = datetime.datetime.now()
 
         # Update counter for the graph to keep measurements in time of one second
-        self.seconds_interval = datetime.datetime.now()
+        self.curtime = 0.000000
 
         # Set the standard datetime format
-        self.datetimeFormat = '%Y-%m-%d %H:%M:%S.%f'
+        self.datetimeFormat = '%Y-%m-%d %I:%M:%S.%f'
+
+        # Time between scans in seconds
+        self.tbs = 1.0/self.scan_hz.get()
 
         # Convert the given hz into milliseconds
-        self.hz_to_mil = int((1/self.scan_hz.get())*1000)
+        self.hz_to_mil = int(self.tbs * 1000)
 
         # Max items in Labjack values list = Twice the number of events per second
         self.max_items = 2 * self.scan_hz.get()
@@ -431,22 +514,57 @@ class UILabCapture():
             self.time_inc.append(x)
 
         # Create a subplot in the canvas f
-        self.ax1 = self.f.add_subplot(1,1,1)
+        try:
+            self.ax1 = self.f.add_subplot(1,1,1)
+        except Exception as ex:
+            print(ex)
 
         # Call to initalize the Labjack
         self.init_labjack() 
+        
+        self.animate_with_stream()
 
         # Call to initialize cameras and avi video
         self.operate_cameras()
 
         # Start processes to begin the capturing from the Blackfly camera
-        self.thread1 = threading.Thread(target= self.acquire_frames, args=(self.image_queue, self.cam_primary,), daemon= True)
-        self.thread2 = threading.Thread(target= self.append_to_video, args=(self.image_queue, ), daemon= True)
-        self.thread1.start()
-        self.thread2.start()
+        self.thread1_p = threading.Thread(target= self.acquire_frames, args=(self.image_queue_primary,  self.cam_primary, 'p', ), daemon= True)
+        self.thread2_p = threading.Thread(target= self.append_to_video, args=(self.image_queue_primary, self.avi_video_primary, ), daemon= True)
+        self.thread1_s = threading.Thread(target= self.acquire_frames, args=(self.image_queue_secondary, self.cam_secondary, 's', ), daemon= True)
+        self.thread2_s = threading.Thread(target= self.append_to_video, args=(self.image_queue_secondary, self.avi_video_secondary, ), daemon= True)
+        self.thread1_p.start()
+        self.thread2_p.start()
+        self.thread1_s.start()
+        self.thread2_s.start()
 
-        #Start writing data to a file 
-        # self.write_to_file()
+        # Start Timer
+        self.timer_thread = threading.Thread(target= self.timer, args=(self.start_time, ), daemon= True)
+        self.timer_thread.start()
+
+        # Create the file for writing data out to disk
+
+        # If dne this will create the file at the specified location;
+        os.makedirs(os.path.dirname(self.filepath), exist_ok=True)
+        # Open a file at the selected file path; 
+        self.f = open(self.filepath, "w")
+        
+        # Format data output file
+
+        # Current date 
+        self.f.write(self.start_time.strftime("%m/%d/%Y") + "\n")
+
+        # Current time
+        self.f.write(self.start_time.strftime("%I:%M:%S %p") + "\n" + "\n")
+
+        # Channel Info
+        for i in range(8):
+            self.f.write("Insert channel info here... \n")
+        
+        # Add Spacer
+        self.f.write("\n")
+
+        #Labels for the tops of the channels seperated by three tabs
+        self.f.write("Time\t\t   v0\t\t   v1\t\t   v2\t\t   v3\t\t   v4\t\t   v5\t\t   v6\t\t   v7\t\t   y0\t\t   y1\t\t   y2\t\t   y3\t\t   y4\t\t   y5\t\t   y6\t\t   y7 \n")
 
         #Call to update function to begin the animation of the GUI
         self.update_gui()
@@ -458,14 +576,21 @@ class UILabCapture():
         self.running_experiment = False
 
         # Wait for the processes to terminate
-        self.thread1.join()
-        self.thread2.join()
+        self.thread1_p.join()
+        self.thread1_s.join()
+        self.thread2_p.join()
+        self.thread2_s.join()
+
+        self.timer_thread.join()
 
         # Call function to handle closing of the cameras and video
         self.deoperate_cameras()
 
         # Stops the call to update being made in update_gui
-        self.root.after_cancel(self.update_after_call_id) 
+        try:
+            self.root.after_cancel(self.update_after_call_id) 
+        except Exception as ex:
+            print(ex)
 
         self.var0.set("0") # Resets voltage being read from the labjack at FIO0
         self.var1.set("0") # Resets voltage being read from the labjack at FIO1
@@ -486,24 +611,39 @@ class UILabCapture():
         self.ax1.set_ylabel('amplitude')        
         self.canvas.draw()
 
+        # Closes the data file
+        self.f.close()
+
         # Resets the scan hz entry
-        self.scan_hz.set("Enter desired hz...")
+        self.scan_hz.set("Labjack Scan rate...")
+
+        # Resets the fps entry
+        self.frame_rate_input.set("Camera FPS...")
+
 
         # Close all UD driver opened devices in the process
         LabJackPython.Close() 
 
+        self.image_queue_primary = Queue.Queue() # Shared queue between threads to save and record frames from the primary camera
+        self.image_queue_secondary = Queue.Queue() # Shared queue between threads to save and record frames from the secondary camera
+        self.missed_frames_p = 0 # (Primary) Counter for the number of missed frames during the stream
+        self.prev_frame_id_p = -1 # (Primary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
+        self.missed_frames_s = 0 # (Secondary) Counter for the number of missed frames during the stream
+        self.prev_frame_id_s = -1 # (Secondary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
+        self.frame_id_queue_p = Queue.Queue()
+        self.frame_id_queue_s = Queue.Queue()
+
 
     # Holds the function calls that need to be updated based on hz
     def update_gui(self):
-        
         # Updates the ainalog voltages being read in from the Labjack
         self.update_voltage()
 
         # Updates the graph of the analog voltages
         self.animate_with_stream()
 
-        # Schedule for this function to call itself agin after 16 milliseconds ~ 60hz
-        self.update_after_call_id = self.root.after(16, self.update_gui) 
+        # Schedule for this function to call itself agin after 1 second
+        self.update_after_call_id = self.root.after(1000, self.update_gui) 
 
 
     # Animates the graph using a stream of data from the labjack
@@ -518,6 +658,8 @@ class UILabCapture():
         new_data_ain6 = []
         new_data_ain7 = []
 
+        times = []
+
         # Stream in X hz events/second worth of data and extend it into the new data lists using a stream
         self.d.streamStart()
         for r in self.d.streamData():
@@ -530,11 +672,29 @@ class UILabCapture():
                 new_data_ain5.extend(r['AIN5'])
                 new_data_ain6.extend(r['AIN6'])
                 new_data_ain7.extend(r['AIN7'])
+
+                
             if len(new_data_ain0) >= self.scan_hz.get():
                 break
         self.d.streamStop()
+        times = [self.curtime + t * self.tbs for t in (range(len(new_data_ain7)))]
 
-        #Extends on the new data into data
+        self.curtime = times[-1] + self.tbs # The current time for the next set of scans
+
+        self.data = [times, new_data_ain0, new_data_ain1, new_data_ain2, new_data_ain3, new_data_ain4, new_data_ain5,new_data_ain6, new_data_ain7]
+
+        # Write the values out to file
+        # self.write_to_file('AIN0', new_data_ain0)
+        # self.write_to_file('AIN1', new_data_ain1)
+        # self.write_to_file('AIN2', new_data_ain2)
+        # self.write_to_file('AIN3', new_data_ain3)
+        # self.write_to_file('AIN4', new_data_ain4)
+        # self.write_to_file('AIN5', new_data_ain5)
+        # self.write_to_file('AIN6', new_data_ain6)
+        # self.write_to_file('AIN7', new_data_ain7)
+        self.write_to_file(self.data)
+
+        # Extends on the new data into data
         self.data_ain0.extend(new_data_ain0)
         self.data_ain1.extend(new_data_ain1)
         self.data_ain2.extend(new_data_ain2)
@@ -544,7 +704,7 @@ class UILabCapture():
         self.data_ain6.extend(new_data_ain6)
         self.data_ain7.extend(new_data_ain7)
 
-        #Remove older data from the front of the lists
+        # Remove older data from the front of the lists
         self.data_ain0 = self.data_ain0[-self.max_items:]
         self.data_ain1 = self.data_ain1[-self.max_items:]
         self.data_ain2 = self.data_ain2[-self.max_items:]
@@ -554,18 +714,18 @@ class UILabCapture():
         self.data_ain6 = self.data_ain6[-self.max_items:]
         self.data_ain7 = self.data_ain7[-self.max_items:]
 
-        #Plot the array with new information on the graph 
+        # Plot the array with new information on the graph 
         self.ax1.clear()
 
-        #Set fixed axis values
-        #self.ax1.set_xlim([0,2])
+        # Set fixed axis values
+        # self.ax1.set_xlim([0,2])
         self.ax1.set_ylim([-.5,5])
 
-        #Label axes
+        # Label axes
         self.ax1.set_xlabel('time (s)')
         self.ax1.set_ylabel('amplitude')
 
-        #Plot the new data for each analog
+        # Plot the new data for each analog
         self.ax1.plot(self.time_inc, self.data_ain0, label = 'AIN0')
         self.ax1.plot(self.time_inc, self.data_ain1, label = 'AIN1')
         self.ax1.plot(self.time_inc, self.data_ain2, label = 'AIN2')
@@ -575,12 +735,29 @@ class UILabCapture():
         self.ax1.plot(self.time_inc, self.data_ain6, label = 'AIN6')
         self.ax1.plot(self.time_inc, self.data_ain7, label = 'AIN7')
 
-        #Create a legend for each analog to make dta tracking easier
+        # Create a legend for each analog to make dta tracking easier
         self.ax1.legend()
 
-        #Display the new graph
+        # Display the new graph
         self.canvas.draw()
-        
+    
+
+    # Handles an interrupt made during an experiment
+    def on_closing(self):
+        if self.running_experiment:
+            self.stop_gui()
+            self.root.destroy()
+        else:
+            self.root.destroy()
+
+
+    # Handles incremeting of the timer
+    # TODO: Figure out how to parse timedelta
+    def timer(self, start_time):
+        while self.running_experiment:
+            #timer = str(datetime.datetime.now() - self.start_time)
+            self.time_label.set(datetime.datetime.now() - self.start_time)
+            time.sleep(1)
 
 # MAIN - Creates a startup window and the main GUI. Passes variables from startup window to the main window
 def main():

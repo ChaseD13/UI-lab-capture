@@ -2,7 +2,7 @@
 
 ### 5/29
 - Introduction to the lab equipment
-- **SpinView** was able to see an image trhough the **FLIR** camera
+- **SpinView** was able to see an image trhough the **FLIR Blackfly S** camera
 - **LJControlPanel** was able to find and read values from the **Labjack U3-LV**
 
 ### 5/30
@@ -38,7 +38,7 @@
 - Primary camera can now take an image and display it on the GUI
 
 ### 6/6
-- Added graph that pulls data from the **Labjack** via a stream
+- Added graph that pulls data from the **Labjack U3-LV** via a stream
   - Displays all 8 analog channels
 - Redesigned GUI using pack instead of grid
 - Added more entry options for data aquisition 
@@ -49,7 +49,7 @@
 - Out of Office
 
 ### 6/10
-- Added ability to record a video of specified frames from the **Blackfly** camera
+- Added ability to record a video of specified frames from the **Blackfly S** camera
   - Capturing at 60hz
 
 ### 6/11
@@ -67,3 +67,23 @@
 ### 6/14
 - Reformated code
 - Threading succesfully saves avi video at 15fps 
+
+### 6/17
+- Added simultaneous streaming for two **FLIR Blackfly S** cameras
+- Reliable recording @60 fps
+- Added lost frame tracking using FrameID's
+
+### 6/18
+- Changed frame dropped counter; Now increments based on difference between to non-sequential frames
+- Changed how data stream from **Labjack U3-LV** is exported
+- Added variable to set both cameras FPS 
+
+### 6/19
+- Added time scaling to the output file
+- Reformated how data is exported from the labjack
+- Each camera owns two threads; One aquires frames, the other appends them to the avi video
+
+### 6/20
+- Added entry to make hz between camera and labjack more clear
+- Frame id's are now added to a queue and exported into Additional docs
+- Data and cameras now return expected results :^)
