@@ -77,3 +77,13 @@
 - Changed frame dropped counter; Now increments based on difference between to non-sequential frames
 - Changed how data stream from **Labjack U3-LV** is exported
 - Added variable to set both cameras FPS 
+
+### 6/19
+- Added time scaling to the output file
+- Reformated how data is exported from the labjack
+- Each camera owns two threads; One aquires frames, the other appends them to the avi video
+
+### 6/20
+- Added entry to make hz between camera and labjack more clear
+- Frame id's are now added to a queue and exported into Additional docs
+- Data and cameras now return expected results :^)
