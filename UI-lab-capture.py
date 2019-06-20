@@ -305,7 +305,6 @@ class UILabCapture():
 
     # Handles the setup and initialization of both cameras and the avi video
     # TODO: Add trigger functionality to align captured frames
-    # NOTE: Camera 2 dropped 294 frames at 60fps; 99 frames at 60 fps;
     def operate_cameras(self):
         # Get system
         self.system = PySpin.System.GetInstance()
@@ -521,25 +520,6 @@ class UILabCapture():
 
         # Call to initalize the Labjack
         self.init_labjack() 
-        
-        self.animate_with_stream()
-
-        # Call to initialize cameras and avi video
-        self.operate_cameras()
-
-        # Start processes to begin the capturing from the Blackfly camera
-        self.thread1_p = threading.Thread(target= self.acquire_frames, args=(self.image_queue_primary,  self.cam_primary, 'p', ), daemon= True)
-        self.thread2_p = threading.Thread(target= self.append_to_video, args=(self.image_queue_primary, self.avi_video_primary, ), daemon= True)
-        self.thread1_s = threading.Thread(target= self.acquire_frames, args=(self.image_queue_secondary, self.cam_secondary, 's', ), daemon= True)
-        self.thread2_s = threading.Thread(target= self.append_to_video, args=(self.image_queue_secondary, self.avi_video_secondary, ), daemon= True)
-        self.thread1_p.start()
-        self.thread2_p.start()
-        self.thread1_s.start()
-        self.thread2_s.start()
-
-        # Start Timer
-        self.timer_thread = threading.Thread(target= self.timer, args=(self.start_time, ), daemon= True)
-        self.timer_thread.start()
 
         # Create the file for writing data out to disk
 
@@ -565,9 +545,30 @@ class UILabCapture():
 
         #Labels for the tops of the channels seperated by three tabs
         self.f.write("Time\t\t   v0\t\t   v1\t\t   v2\t\t   v3\t\t   v4\t\t   v5\t\t   v6\t\t   v7\t\t   y0\t\t   y1\t\t   y2\t\t   y3\t\t   y4\t\t   y5\t\t   y6\t\t   y7 \n")
+        
+        self.update_gui()
+
+        # Call to initialize cameras and avi video
+        self.operate_cameras()
+
+        # Start processes to begin the capturing from the Blackfly camera
+        self.thread1_p = threading.Thread(target= self.acquire_frames, args=(self.image_queue_primary,  self.cam_primary, 'p', ), daemon= True)
+        self.thread2_p = threading.Thread(target= self.append_to_video, args=(self.image_queue_primary, self.avi_video_primary, ), daemon= True)
+        self.thread1_s = threading.Thread(target= self.acquire_frames, args=(self.image_queue_secondary, self.cam_secondary, 's', ), daemon= True)
+        self.thread2_s = threading.Thread(target= self.append_to_video, args=(self.image_queue_secondary, self.avi_video_secondary, ), daemon= True)
+        self.thread1_p.start()
+        self.thread2_p.start()
+        self.thread1_s.start()
+        self.thread2_s.start()
+
+        # Start Timer
+        self.timer_thread = threading.Thread(target= self.timer, args=(self.start_time, ), daemon= True)
+        self.timer_thread.start()
+
+
 
         #Call to update function to begin the animation of the GUI
-        self.update_gui()
+        #self.update_gui()
 
 
     # A function to stop the current experiment and revert the GUI back to a clean state
@@ -758,6 +759,7 @@ class UILabCapture():
             #timer = str(datetime.datetime.now() - self.start_time)
             self.time_label.set(datetime.datetime.now() - self.start_time)
             time.sleep(1)
+
 
 # MAIN - Creates a startup window and the main GUI. Passes variables from startup window to the main window
 def main():
