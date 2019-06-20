@@ -21,13 +21,11 @@ import traceback
 from PIL import Image, ImageTk
 import signal
 import threading
-import gc
 import csv
 
 
 # NOTE: Scaling functionality for labjack data not neccessary at the moment
 # NOTE: Channel info not neccessary at the moment
-# NOTE: Camera preview not neccessary at the moment
 
 
 # Add funtions purpose here....
@@ -125,8 +123,8 @@ class UILabCapture():
         self.prev_frame_id_p = -1 # (Primary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
         self.missed_frames_s = 0 # (Secondary) Counter for the number of missed frames during the stream
         self.prev_frame_id_s = -1 # (Secondary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
-        self.frame_id_queue_p = Queue.Queue()
-        self.frame_id_queue_s = Queue.Queue()
+        self.frame_id_queue_p = Queue.Queue() # Holds the sequential frame ids from the primary camera
+        self.frame_id_queue_s = Queue.Queue() # Holds the sequential frame ids from the secondary camera
  
     # Builds the main GUI window 
     def build_window(self):
@@ -280,9 +278,8 @@ class UILabCapture():
             self.var5.set(round(self.d.getAIN(5), 3)) # Get and set voltage for port 5
             self.var6.set(round(self.d.getAIN(6), 3)) # Get and set voltage for port 6
             self.var7.set(round(self.d.getAIN(7), 3)) # Get and set voltage for port 7
-        except: 
-            self.d.streamStop()
-            self.update_voltage()
+        except Exception as ex: 
+            print(ex)
 
 
     # Function to wrtie the data out to a directory
@@ -396,13 +393,13 @@ class UILabCapture():
         print("Total frames captured(Secondary): %d" % self.prev_frame_id_s)
 
         # If dne this will create the file at the specified location;
-        os.makedirs(os.path.dirname('C://Users/Behavior Scoring/Desktop/UI-lab-capture/primary_frames.csv'), exist_ok=True)
+        os.makedirs(os.path.dirname('C://Users/Behavior Scoring/Desktop/UI-lab-capture/Additional docs/primary_frames.csv'), exist_ok=True)
         # Open a file at the selected file path; 
-        self.file_p = open('C://Users/Behavior Scoring/Desktop/UI-lab-capture/primary_frames.csv', "w")
+        self.file_p = open('C://Users/Behavior Scoring/Desktop/UI-lab-capture/Additional docs/primary_frames.csv', "w")
         # If dne this will create the file at the specified location;
-        os.makedirs(os.path.dirname('C://Users/Behavior Scoring/Desktop/UI-lab-capture/secondary_frames.csv'), exist_ok=True)
+        os.makedirs(os.path.dirname('C://Users/Behavior Scoring/Desktop/UI-lab-capture/Additional docs/secondary_frames.csv'), exist_ok=True)
         # Open a file at the selected file path; 
-        self.file_s = open('C://Users/Behavior Scoring/Desktop/UI-lab-capture/secondary_frames.csv', "w")
+        self.file_s = open('C://Users/Behavior Scoring/Desktop/UI-lab-capture/Additional docs/secondary_frames.csv', "w")
         
         # Prints the queue of frime ids out to disk(Primary)
         for i in range(self.frame_id_queue_p.qsize()):
@@ -411,7 +408,9 @@ class UILabCapture():
         # Prints the queue of frime ids out to disk(Secondary)
         for i in range(self.frame_id_queue_s.qsize()):
             self.file_s.write(str(self.frame_id_queue_s.get()) + '\n')
-            
+
+        self.file_p.close()
+        self.file_s.close()
 
         #Close the recording files
         self.avi_video_primary.Close()
@@ -521,6 +520,8 @@ class UILabCapture():
 
         # Call to initalize the Labjack
         self.init_labjack() 
+        
+        self.animate_with_stream()
 
         # Call to initialize cameras and avi video
         self.operate_cameras()
@@ -579,6 +580,8 @@ class UILabCapture():
         self.thread2_p.join()
         self.thread2_s.join()
 
+        self.timer_thread.join()
+
         # Call function to handle closing of the cameras and video
         self.deoperate_cameras()
 
@@ -620,10 +623,14 @@ class UILabCapture():
         # Close all UD driver opened devices in the process
         LabJackPython.Close() 
 
-        del self.image_queue_primary
-        del self.image_queue_secondary
-
-        gc.collect()
+        self.image_queue_primary = Queue.Queue() # Shared queue between threads to save and record frames from the primary camera
+        self.image_queue_secondary = Queue.Queue() # Shared queue between threads to save and record frames from the secondary camera
+        self.missed_frames_p = 0 # (Primary) Counter for the number of missed frames during the stream
+        self.prev_frame_id_p = -1 # (Primary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
+        self.missed_frames_s = 0 # (Secondary) Counter for the number of missed frames during the stream
+        self.prev_frame_id_s = -1 # (Secondary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
+        self.frame_id_queue_p = Queue.Queue()
+        self.frame_id_queue_s = Queue.Queue()
 
 
     # Holds the function calls that need to be updated based on hz
@@ -634,8 +641,8 @@ class UILabCapture():
         # Updates the graph of the analog voltages
         self.animate_with_stream()
 
-        # Schedule for this function to call itself agin after 1/scan hz * 1000 ms
-        self.update_after_call_id = self.root.after(self.hz_to_mil, self.update_gui) 
+        # Schedule for this function to call itself agin after 1 second
+        self.update_after_call_id = self.root.after(1000, self.update_gui) 
 
 
     # Animates the graph using a stream of data from the labjack
