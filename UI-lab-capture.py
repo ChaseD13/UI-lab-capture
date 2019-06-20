@@ -125,7 +125,6 @@ class UILabCapture():
         self.prev_frame_id_p = -1 # (Primary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
         self.missed_frames_s = 0 # (Secondary) Counter for the number of missed frames during the stream
         self.prev_frame_id_s = -1 # (Secondary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
-        self.camera_fps = 60 # Sets the fps for both cameras
         self.frame_id_queue_p = Queue.Queue()
         self.frame_id_queue_s = Queue.Queue()
  
@@ -177,6 +176,7 @@ class UILabCapture():
         self.cameras = tk.Label(self.camera_frame, text = "Space for Cameras", bg = "orange", height = 20)
         self.cameras.pack(fill = "both")
 
+
         # Labels for the FIO 0-7 ports on the labjacks
         tk.Label(self.labjack_values, text = "AIN0: ").pack()
         self.ain_zero = tk.Label(self.labjack_values, textvariable = self.var0)
@@ -211,17 +211,14 @@ class UILabCapture():
         self.ain_seven.pack()
 
 
-
-        # Scales
-        # Scale for users to adjust the scan speed in Hz
-        # self.scan_scale = tk.Scale(self.labjack_values, from_=0.1, to=100, orient = tk.HORIZONTAL, label = "Scan rate (Hz)", length = 500, resolution = 1)
-        # self.scan_scale.grid(row = 3, column = 0, columnspan = 8)
-        # self.scan_scale.set(1)
-
-
         self.scan_hz = tk.IntVar()
-        self.scan_hz.set("Enter desired hz...")
+        self.scan_hz.set("Labjack Scan rate...")
         self.scan_space = tk.Entry(self.labjack_values, textvariable = self.scan_hz)
+        self.scan_space.pack(padx = 10, pady = 10)
+
+        self.frame_rate_input = tk.IntVar()
+        self.frame_rate_input.set("Camera FPS...")
+        self.scan_space = tk.Entry(self.labjack_values, textvariable = self.frame_rate_input)
         self.scan_space.pack(padx = 10, pady = 10)
 
         # Input for the number of channels
@@ -233,6 +230,12 @@ class UILabCapture():
         # Button
         tk.Button(self.labjack_values, text = "Start Experiment", command = self.start_gui).pack(padx = 10, pady = 10)
         tk.Button(self.labjack_values, text = "Stop Experiment", command = self.stop_gui).pack(padx = 10, pady = 10)
+
+        # Total time experied
+        self.time_label = tk.IntVar()
+        self.time_label.set('00:00')
+        tk.Label(self.labjack_values, text= 'Experiment Time:').pack(padx = 10, pady = 10)
+        tk.Label(self.labjack_values, textvariable= self.time_label).pack(padx = 10, pady = 10)
 
 
         self.f = figure.Figure(figsize = (5,4))
@@ -287,7 +290,7 @@ class UILabCapture():
     def write_to_file(self, data_list):
         try:
             # Increments vertically
-            for i in range(len(data_list[0])):
+            for i in range(len(data_list[-1])):
                 # Increments horizontally
                 for j in range(len(data_list)):
                     # If not last list, print with with tabs
@@ -351,9 +354,9 @@ class UILabCapture():
 
         # Set aquisition rate to desired fps for both cameras
         self.cam_primary.AcquisitionFrameRateEnable.SetValue(True)
-        self.cam_primary.AcquisitionFrameRate.SetValue(self.camera_fps)
+        self.cam_primary.AcquisitionFrameRate.SetValue(self.frame_rate_input.get())
         self.cam_secondary.AcquisitionFrameRateEnable.SetValue(True)
-        self.cam_secondary.AcquisitionFrameRate.SetValue(self.camera_fps)
+        self.cam_secondary.AcquisitionFrameRate.SetValue(self.frame_rate_input.get())
 
         # Start acquisition; note that secondary camera has to be started first so 
         # acquisition of primary camera triggers secondary camera.
@@ -371,8 +374,8 @@ class UILabCapture():
         filename_seconday = 'SaveToAvi-MJPG-19061546' 
         option_primary = PySpin.MJPGOption()
         option_secondary = PySpin.MJPGOption()
-        option_primary.frameRate = self.camera_fps
-        option_secondary.frameRate = self.camera_fps
+        option_primary.frameRate = self.frame_rate_input.get()
+        option_secondary.frameRate = self.frame_rate_input.get()
         option_primary.quality = 75
         option_secondary.quality = 75
 
@@ -404,7 +407,7 @@ class UILabCapture():
         # Prints the queue of frime ids out to disk(Primary)
         for i in range(self.frame_id_queue_p.qsize()):
             self.file_p.write(str(self.frame_id_queue_p.get()) + '\n')
-                
+
         # Prints the queue of frime ids out to disk(Secondary)
         for i in range(self.frame_id_queue_s.qsize()):
             self.file_s.write(str(self.frame_id_queue_s.get()) + '\n')
@@ -473,8 +476,6 @@ class UILabCapture():
                 
 
     # A function to handle all updating of values and functions
-    # TODO: Add more threads to handle the other updating functions
-    # TODO: Figure out why cameras are recording at different lengths
     def start_gui(self):
         # The experiment has started running
         self.running_experiment = True
@@ -513,7 +514,10 @@ class UILabCapture():
             self.time_inc.append(x)
 
         # Create a subplot in the canvas f
-        self.ax1 = self.f.add_subplot(1,1,1)
+        try:
+            self.ax1 = self.f.add_subplot(1,1,1)
+        except Exception as ex:
+            print(ex)
 
         # Call to initalize the Labjack
         self.init_labjack() 
@@ -530,6 +534,10 @@ class UILabCapture():
         self.thread2_p.start()
         self.thread1_s.start()
         self.thread2_s.start()
+
+        # Start Timer
+        self.timer_thread = threading.Thread(target= self.timer, args=(self.start_time, ), daemon= True)
+        self.timer_thread.start()
 
         # Create the file for writing data out to disk
 
@@ -603,7 +611,11 @@ class UILabCapture():
         self.f.close()
 
         # Resets the scan hz entry
-        self.scan_hz.set("Enter desired hz...")
+        self.scan_hz.set("Labjack Scan rate...")
+
+        # Resets the fps entry
+        self.frame_rate_input.set("Camera FPS...")
+
 
         # Close all UD driver opened devices in the process
         LabJackPython.Close() 
@@ -622,8 +634,8 @@ class UILabCapture():
         # Updates the graph of the analog voltages
         self.animate_with_stream()
 
-        # Schedule for this function to call itself agin after 16 milliseconds ~ 60hz
-        self.update_after_call_id = self.root.after(16, self.update_gui) 
+        # Schedule for this function to call itself agin after 1/scan hz * 1000 ms
+        self.update_after_call_id = self.root.after(self.hz_to_mil, self.update_gui) 
 
 
     # Animates the graph using a stream of data from the labjack
@@ -653,10 +665,11 @@ class UILabCapture():
                 new_data_ain6.extend(r['AIN6'])
                 new_data_ain7.extend(r['AIN7'])
 
-                times = [self.curtime + t * self.tbs for t in (range(len(new_data_ain0)))]
+                
             if len(new_data_ain0) >= self.scan_hz.get():
                 break
         self.d.streamStop()
+        times = [self.curtime + t * self.tbs for t in (range(len(new_data_ain7)))]
 
         self.curtime = times[-1] + self.tbs # The current time for the next set of scans
 
@@ -729,6 +742,14 @@ class UILabCapture():
         else:
             self.root.destroy()
 
+
+    # Handles incremeting of the timer
+    # TODO: Figure out how to parse timedelta
+    def timer(self, start_time):
+        while self.running_experiment:
+            #timer = str(datetime.datetime.now() - self.start_time)
+            self.time_label.set(datetime.datetime.now() - self.start_time)
+            time.sleep(1)
 
 # MAIN - Creates a startup window and the main GUI. Passes variables from startup window to the main window
 def main():
