@@ -22,6 +22,7 @@ from PIL import Image, ImageTk
 import signal
 import threading
 import gc
+import csv
 
 
 # NOTE: Scaling functionality for labjack data not neccessary at the moment
@@ -125,6 +126,8 @@ class UILabCapture():
         self.missed_frames_s = 0 # (Secondary) Counter for the number of missed frames during the stream
         self.prev_frame_id_s = -1 # (Secondary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
         self.camera_fps = 60 # Sets the fps for both cameras
+        self.frame_id_queue_p = Queue.Queue()
+        self.frame_id_queue_s = Queue.Queue()
  
     # Builds the main GUI window 
     def build_window(self):
@@ -381,11 +384,31 @@ class UILabCapture():
     # Handles the closing and deinitialization of both cameras and the avi video 
     def deoperate_cameras(self):
 
-        #Wait on processes to finsih up the last of the appending
-
-        #Print the number of dropped frames
+        # Print the number of dropped frames
         print("Total missed frames(Primary): %d" % self.missed_frames_p)
         print("Total missed frames(Secondary): %d" % self.missed_frames_s)
+
+        # Print total number of captured frames
+        print("Total frames captured(Primary): %d" % self.prev_frame_id_p)
+        print("Total frames captured(Secondary): %d" % self.prev_frame_id_s)
+
+        # If dne this will create the file at the specified location;
+        os.makedirs(os.path.dirname('C://Users/Behavior Scoring/Desktop/UI-lab-capture/primary_frames.csv'), exist_ok=True)
+        # Open a file at the selected file path; 
+        self.file_p = open('C://Users/Behavior Scoring/Desktop/UI-lab-capture/primary_frames.csv', "w")
+        # If dne this will create the file at the specified location;
+        os.makedirs(os.path.dirname('C://Users/Behavior Scoring/Desktop/UI-lab-capture/secondary_frames.csv'), exist_ok=True)
+        # Open a file at the selected file path; 
+        self.file_s = open('C://Users/Behavior Scoring/Desktop/UI-lab-capture/secondary_frames.csv', "w")
+        
+        # Prints the queue of frime ids out to disk(Primary)
+        for i in range(self.frame_id_queue_p.qsize()):
+            self.file_p.write(str(self.frame_id_queue_p.get()) + '\n')
+                
+        # Prints the queue of frime ids out to disk(Secondary)
+        for i in range(self.frame_id_queue_s.qsize()):
+            self.file_s.write(str(self.frame_id_queue_s.get()) + '\n')
+            
 
         #Close the recording files
         self.avi_video_primary.Close()
@@ -407,7 +430,7 @@ class UILabCapture():
 
 
     # While experiment is running, retrieves frames from the camera, puts them into the shared queue, and releses them from the buffer
-    def acquire_frames(self, q, cam, missed_frames, prev_frame_id):
+    def acquire_frames(self, q, cam, letter):
         while self.running_experiment:
             try:
                 # Grab frames from camera's buffer
@@ -417,15 +440,22 @@ class UILabCapture():
                 q.put(buffer_image)
 
                 # Checks if the frames from the camera are sequential; Increments if the frames are not sequential
-                if int(buffer_image.GetFrameID()) != (prev_frame_id + 1):
-                    missed_frames += int(buffer_image.GetFrameID()) - prev_frame_id
-                prev_frame_id = int(buffer_image.GetFrameID())
+                if letter == 'p':
+                    if int(buffer_image.GetFrameID()) != (self.prev_frame_id_p + 1):
+                        self.missed_frames_p += int(buffer_image.GetFrameID()) - self.prev_frame_id_p
+                    self.prev_frame_id_p = int(buffer_image.GetFrameID())
+                    self.frame_id_queue_p.put(int(buffer_image.GetFrameID()))
+                else:
+                    if int(buffer_image.GetFrameID()) != (self.prev_frame_id_s + 1):
+                        self.missed_frames_s += int(buffer_image.GetFrameID()) - self.prev_frame_id_s
+                    self.prev_frame_id_s = int(buffer_image.GetFrameID())
+                    self.frame_id_queue_s.put(int(buffer_image.GetFrameID()))
 
                 # Release images from the buffers 
                 buffer_image.Release()
 
-            except:
-                pass
+            except Exception as ex:
+                print(ex)
 
 
     # Using the shared queue and while experiment is running, dequeues frames and appends them to the end of the avi recording
@@ -438,10 +468,9 @@ class UILabCapture():
                 # Append frames to the camera's avi video
                 video.Append(queue_image)
 
-            except:
-                print("Image not appended")
+            except Exception as ex:
+                print(ex)
                 
-
 
     # A function to handle all updating of values and functions
     # TODO: Add more threads to handle the other updating functions
@@ -493,9 +522,9 @@ class UILabCapture():
         self.operate_cameras()
 
         # Start processes to begin the capturing from the Blackfly camera
-        self.thread1_p = threading.Thread(target= self.acquire_frames, args=(self.image_queue_primary,  self.cam_primary, self.missed_frames_p, self.prev_frame_id_p, ), daemon= True)
+        self.thread1_p = threading.Thread(target= self.acquire_frames, args=(self.image_queue_primary,  self.cam_primary, 'p', ), daemon= True)
         self.thread2_p = threading.Thread(target= self.append_to_video, args=(self.image_queue_primary, self.avi_video_primary, ), daemon= True)
-        self.thread1_s = threading.Thread(target= self.acquire_frames, args=(self.image_queue_secondary, self.cam_secondary, self.missed_frames_s, self.prev_frame_id_s, ), daemon= True)
+        self.thread1_s = threading.Thread(target= self.acquire_frames, args=(self.image_queue_secondary, self.cam_secondary, 's', ), daemon= True)
         self.thread2_s = threading.Thread(target= self.append_to_video, args=(self.image_queue_secondary, self.avi_video_secondary, ), daemon= True)
         self.thread1_p.start()
         self.thread2_p.start()
@@ -546,7 +575,10 @@ class UILabCapture():
         self.deoperate_cameras()
 
         # Stops the call to update being made in update_gui
-        self.root.after_cancel(self.update_after_call_id) 
+        try:
+            self.root.after_cancel(self.update_after_call_id) 
+        except Exception as ex:
+            print(ex)
 
         self.var0.set("0") # Resets voltage being read from the labjack at FIO0
         self.var1.set("0") # Resets voltage being read from the labjack at FIO1
@@ -584,7 +616,6 @@ class UILabCapture():
 
     # Holds the function calls that need to be updated based on hz
     def update_gui(self):
-        
         # Updates the ainalog voltages being read in from the Labjack
         self.update_voltage()
 
