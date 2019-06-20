@@ -366,6 +366,7 @@ class UILabCapture():
         self.avi_video_primary = PySpin.SpinVideo()
         self.avi_video_secondary = PySpin.SpinVideo()
 
+
         #Set filename and options for both videos
         filename_primary = 'SaveToAvi-MJPG-%s' % self.primary_sn
         filename_seconday = 'SaveToAvi-MJPG-19061546' 
