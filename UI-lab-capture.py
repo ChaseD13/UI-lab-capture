@@ -260,8 +260,8 @@ class UILabCapture():
         # Call to initialize cameras and avi video
         self.operate_cameras()
         self.running_preview = True
-        self.thread_preview_p = threading.Thread(target= self.start_preview, args=(self.cam_primary, 'p', ), daemon= True)
-        self.thread_preview_s = threading.Thread(target= self.start_preview, args=(self.cam_secondary, 's', ), daemon= True)
+        self.thread_preview_p = threading.Thread(target= self.preview_and_acquire_images, args=(self.image_queue_primary, self.cam_primary, 'p', ), daemon= True)
+        self.thread_preview_s = threading.Thread(target= self.preview_and_acquire_images, args=(self.image_queue_secondary, self.cam_secondary, 's', ), daemon= True)
         self.thread_preview_p.start()
         self.thread_preview_s.start()
 
@@ -437,20 +437,6 @@ class UILabCapture():
         self.avi_video_primary.Close()
         self.avi_video_secondary.Close()
 
-        # Stop acquisition
-        self.cam_secondary.EndAcquisition()
-        self.cam_primary.EndAcquisition()
-
-
-        # De-initialize
-        self.cam_primary.DeInit()
-        self.cam_secondary.DeInit()
-
-        # Delete Assets
-        del self.cam_primary
-        del self.cam_secondary
-        del self.cam_list
-
 
     # While experiment is running, retrieves frames from the camera, puts them into the shared queue, and releses them from the buffer
     def acquire_frames(self, q, cam, letter):
@@ -574,13 +560,13 @@ class UILabCapture():
         self.update_gui()
 
         # Start processes to begin the capturing from the Blackfly camera
-        self.thread1_p = threading.Thread(target= self.acquire_frames, args=(self.image_queue_primary,  self.cam_primary, 'p', ), daemon= True)
+        #self.thread1_p = threading.Thread(target= self.acquire_frames, args=(self.image_queue_primary,  self.cam_primary, 'p', ), daemon= True)
         self.thread2_p = threading.Thread(target= self.append_to_video, args=(self.image_queue_primary, self.avi_video_primary, ), daemon= True)
-        self.thread1_s = threading.Thread(target= self.acquire_frames, args=(self.image_queue_secondary, self.cam_secondary, 's', ), daemon= True)
+        #self.thread1_s = threading.Thread(target= self.acquire_frames, args=(self.image_queue_secondary, self.cam_secondary, 's', ), daemon= True)
         self.thread2_s = threading.Thread(target= self.append_to_video, args=(self.image_queue_secondary, self.avi_video_secondary, ), daemon= True)
-        self.thread1_p.start()
+        #self.thread1_p.start()
         self.thread2_p.start()
-        self.thread1_s.start()
+        #self.thread1_s.start()
         self.thread2_s.start()
 
         # Start Timer
@@ -591,15 +577,8 @@ class UILabCapture():
     # A function to stop the current experiment and revert the GUI back to a clean state
     def stop_gui(self):
         # The experiment is no longer running
+        self.running_preview = True
         self.running_experiment = False
-
-        # Wait for the processes to terminate
-        self.thread1_p.join()
-        self.thread1_s.join()
-        self.thread2_p.join()
-        self.thread2_s.join()
-
-        self.timer_thread.join()
 
         # Call function to handle closing of the cameras and video
         self.deoperate_cameras()
@@ -638,10 +617,6 @@ class UILabCapture():
         # Resets the fps entry
         self.frame_rate_input.set("Camera FPS...")
 
-
-        # Close all UD driver opened devices in the process
-        LabJackPython.Close() 
-
         self.image_queue_primary = Queue.Queue() # Shared queue between threads to save and record frames from the primary camera
         self.image_queue_secondary = Queue.Queue() # Shared queue between threads to save and record frames from the secondary camera
         self.missed_frames_p = 0 # (Primary) Counter for the number of missed frames during the stream
@@ -650,6 +625,27 @@ class UILabCapture():
         self.prev_frame_id_s = -1 # (Secondary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
         self.frame_id_queue_p = Queue.Queue()
         self.frame_id_queue_s = Queue.Queue()
+
+
+    # A function to handle closing the hardware when the window is closed
+    def shutdown_gui(self):
+        self.running_preview = False
+
+        # Stop acquisition
+        self.cam_secondary.EndAcquisition()
+        self.cam_primary.EndAcquisition()
+
+        # De-initialize cameras
+        self.cam_primary.DeInit()
+        self.cam_secondary.DeInit()
+
+        # Delete Assets
+        del self.cam_primary
+        del self.cam_secondary
+        del self.cam_list
+
+        # Close all UD driver opened devices in the process
+        LabJackPython.Close() 
 
 
     # Holds the function calls that need to be updated based on hz
@@ -763,11 +759,13 @@ class UILabCapture():
     # Handles an interrupt made during an experiment
     def on_closing(self):
         if self.running_experiment:
-            self.stop_gui()
+            self.running_experiment = False
+            self.shutdown_gui()
             self.root.destroy()
         else:
+            self.shutdown_gui()
             self.root.destroy()
-
+            
 
     # Handles incremeting of the timer
     # TODO: Figure out how to parse timedelta
@@ -779,6 +777,7 @@ class UILabCapture():
 
 
     # Handles live view of the cameras
+    # TODO: Primary camera spazs out sometimes
     def start_preview(self, cam, letter):
         while self.running_preview:
             try:
@@ -788,7 +787,7 @@ class UILabCapture():
                 bimg = buffer_image.GetNDArray()
                 # Transforms the numpy array into a PIL image
                 image = Image.fromarray(bimg)
-                resized_image = ImageOps.fit(image, (600,300), Image.ANTIALIAS)
+                resized_image = ImageOps.fit(image, (500 ,400), Image.ANTIALIAS)
                 # Transfroms PIL image into a Tkinter Image
                 tkimage = ImageTk.PhotoImage(resized_image)
 
@@ -800,6 +799,50 @@ class UILabCapture():
             
                 self.root.update()
 
+                # Release images from the buffers 
+                buffer_image.Release()
+            except Exception as ex:
+                print(ex)
+
+
+    # Handles live view of the cameras and stores images in shared queue once experiment is started
+    # TODO: Primary camera spazs out sometimes
+    def preview_and_acquire_images(self, q, cam, letter):
+        while self.running_preview or self.running_experiment:
+            try:
+                # Grab frames from camera's buffer
+                buffer_image = cam.GetNextImage()
+                # Converts the grabbed image from ram into an Numpy array
+                bimg = buffer_image.GetNDArray()
+                # Transforms the numpy array into a PIL image
+                image = Image.fromarray(bimg)
+                resized_image = ImageOps.fit(image, (500 ,400), Image.ANTIALIAS)
+                # Transfroms PIL image into a Tkinter Image
+                tkimage = ImageTk.PhotoImage(resized_image)
+
+                # Update the camera's image
+                if letter == 'p':
+                    self.img_p.configure(image= tkimage)
+                else:
+                    self.img_s.configure(image= tkimage)
+            
+                self.root.update()
+
+                if self.running_experiment:
+                    # Store frames into shared queue for camera
+                    q.put(buffer_image)
+
+                    # Checks if the frames from the camera are sequential; Increments if the frames are not sequential
+                    if letter == 'p':
+                        if int(buffer_image.GetFrameID()) != (self.prev_frame_id_p + 1):
+                            self.missed_frames_p += int(buffer_image.GetFrameID()) - self.prev_frame_id_p
+                        self.prev_frame_id_p = int(buffer_image.GetFrameID())
+                        self.frame_id_queue_p.put(int(buffer_image.GetFrameID()))
+                    else:
+                        if int(buffer_image.GetFrameID()) != (self.prev_frame_id_s + 1):
+                            self.missed_frames_s += int(buffer_image.GetFrameID()) - self.prev_frame_id_s
+                        self.prev_frame_id_s = int(buffer_image.GetFrameID())
+                        self.frame_id_queue_s.put(int(buffer_image.GetFrameID()))
                 # Release images from the buffers 
                 buffer_image.Release()
             except Exception as ex:
