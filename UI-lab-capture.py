@@ -18,7 +18,7 @@ except ImportError:  # Python 3
 from copy import deepcopy
 import sys
 import traceback
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageOps
 import signal
 import threading
 import csv
@@ -119,6 +119,7 @@ class UILabCapture():
         self.image_queue_primary = Queue.Queue() # Shared queue between threads to save and record frames from the primary camera
         self.image_queue_secondary = Queue.Queue() # Shared queue between threads to save and record frames from the secondary camera
         self.running_experiment = False # Boolean value to keep track wther or not there is an experiment running currently
+        self.running_preview = False 
         self.missed_frames_p = 0 # (Primary) Counter for the number of missed frames during the stream
         self.prev_frame_id_p = -1 # (Primary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
         self.missed_frames_s = 0 # (Secondary) Counter for the number of missed frames during the stream
@@ -126,6 +127,7 @@ class UILabCapture():
         self.frame_id_queue_p = Queue.Queue() # Holds the sequential frame ids from the primary camera
         self.frame_id_queue_s = Queue.Queue() # Holds the sequential frame ids from the secondary camera
  
+
     # Builds the main GUI window 
     def build_window(self):
         # Initialize a window
@@ -171,8 +173,20 @@ class UILabCapture():
         #Labels
 
         # Label that is filling the space where the camera will be
-        self.cameras = tk.Label(self.camera_frame, text = "Space for Cameras", bg = "orange", height = 20)
-        self.cameras.pack(fill = "both")
+        # self.cameras = tk.Label(self.camera_frame, text = "Space for Cameras", bg = "orange", height = 20)
+        # self.cameras.pack(fill = "both")
+
+        # Frame to hold primary camera images
+        image_p = Image.open('voles.jpg')
+        photo_p = ImageTk.PhotoImage(image_p)
+        self.img_p = tk.Label(self.camera_frame, image = photo_p)
+        self.img_p.pack(padx = 20, pady = 20, side = 'left', fill = 'both', expand = 1)
+
+        # Frame to hold secondary camera images
+        image_s = Image.open('voles.jpg')
+        photo_s = ImageTk.PhotoImage(image_s)
+        self.img_s = tk.Label(self.camera_frame, image = photo_s)
+        self.img_s.pack(padx = 20, pady = 20, side = 'left', fill = 'both', expand = 1)
 
 
         # Labels for the FIO 0-7 ports on the labjacks
@@ -215,7 +229,7 @@ class UILabCapture():
         self.scan_space.pack(padx = 10, pady = 10)
 
         self.frame_rate_input = tk.IntVar()
-        self.frame_rate_input.set("Camera FPS...")
+        self.frame_rate_input.set("30")
         self.scan_space = tk.Entry(self.labjack_values, textvariable = self.frame_rate_input)
         self.scan_space.pack(padx = 10, pady = 10)
 
@@ -236,14 +250,21 @@ class UILabCapture():
         tk.Label(self.labjack_values, textvariable= self.time_label).pack(padx = 10, pady = 10)
 
 
-        self.f = figure.Figure(figsize = (5,4))
+        self.f = figure.Figure(figsize = (4,3))
 
-        # Create a cnvas in the window to place the figure into 
+        # Create a canvas in the window to place the figure into 
         self.canvas = FigureCanvasTkAgg(self.f, self.scrolling_graph)
         self.canvas.get_tk_widget().pack(side = "top", fill = "both", expand = True)
         self.canvas.draw()
 
-        #Frame to hold camera images
+        # Call to initialize cameras and avi video
+        self.operate_cameras()
+        self.running_preview = True
+        self.thread_preview_p = threading.Thread(target= self.start_preview, args=(self.cam_primary, 'p', ), daemon= True)
+        self.thread_preview_s = threading.Thread(target= self.start_preview, args=(self.cam_secondary, 's', ), daemon= True)
+        self.thread_preview_p.start()
+        self.thread_preview_s.start()
+
 
         #Handle interrupt 
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -478,6 +499,7 @@ class UILabCapture():
     def start_gui(self):
         # The experiment has started running
         self.running_experiment = True
+        self.running_preview = False
 
         # Time the experiment was started
         self.start_time = datetime.datetime.now()
@@ -521,6 +543,8 @@ class UILabCapture():
         # Call to initalize the Labjack
         self.init_labjack() 
 
+        #self.operate_cameras()
+
         # Create the file for writing data out to disk
 
         # If dne this will create the file at the specified location;
@@ -546,10 +570,8 @@ class UILabCapture():
         #Labels for the tops of the channels seperated by three tabs
         self.f.write("Time\t\t   v0\t\t   v1\t\t   v2\t\t   v3\t\t   v4\t\t   v5\t\t   v6\t\t   v7\t\t   y0\t\t   y1\t\t   y2\t\t   y3\t\t   y4\t\t   y5\t\t   y6\t\t   y7 \n")
         
+        #Call to update function to begin the animation of the GUI
         self.update_gui()
-
-        # Call to initialize cameras and avi video
-        self.operate_cameras()
 
         # Start processes to begin the capturing from the Blackfly camera
         self.thread1_p = threading.Thread(target= self.acquire_frames, args=(self.image_queue_primary,  self.cam_primary, 'p', ), daemon= True)
@@ -564,11 +586,6 @@ class UILabCapture():
         # Start Timer
         self.timer_thread = threading.Thread(target= self.timer, args=(self.start_time, ), daemon= True)
         self.timer_thread.start()
-
-
-
-        #Call to update function to begin the animation of the GUI
-        #self.update_gui()
 
 
     # A function to stop the current experiment and revert the GUI back to a clean state
@@ -759,6 +776,34 @@ class UILabCapture():
             #timer = str(datetime.datetime.now() - self.start_time)
             self.time_label.set(datetime.datetime.now() - self.start_time)
             time.sleep(1)
+
+
+    # Handles live view of the cameras
+    def start_preview(self, cam, letter):
+        while self.running_preview:
+            try:
+                # Grab frames from camera's buffer
+                buffer_image = cam.GetNextImage()
+                # Converts the grabbed image from ram into an Numpy array
+                bimg = buffer_image.GetNDArray()
+                # Transforms the numpy array into a PIL image
+                image = Image.fromarray(bimg)
+                resized_image = ImageOps.fit(image, (600,300), Image.ANTIALIAS)
+                # Transfroms PIL image into a Tkinter Image
+                tkimage = ImageTk.PhotoImage(resized_image)
+
+                # Update the camera's image
+                if letter == 'p':
+                    self.img_p.configure(image= tkimage)
+                else:
+                    self.img_s.configure(image= tkimage)
+            
+                self.root.update()
+
+                # Release images from the buffers 
+                buffer_image.Release()
+            except Exception as ex:
+                print(ex)
 
 
 # MAIN - Creates a startup window and the main GUI. Passes variables from startup window to the main window
