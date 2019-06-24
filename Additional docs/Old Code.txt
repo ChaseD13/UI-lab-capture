@@ -63,3 +63,33 @@
 
     #         except:
     #             pass
+
+
+
+        # Handles live view of the cameras
+    # TODO: Primary camera spazs out sometimes
+    # def start_preview(self, cam, letter):
+    #     while self.running_preview:
+    #         try:
+    #             # Grab frames from camera's buffer
+    #             buffer_image = cam.GetNextImage()
+    #             # Converts the grabbed image from ram into an Numpy array
+    #             bimg = buffer_image.GetNDArray()
+    #             # Transforms the numpy array into a PIL image
+    #             image = Image.fromarray(bimg)
+    #             resized_image = ImageOps.fit(image, (500 ,400), Image.ANTIALIAS)
+    #             # Transfroms PIL image into a Tkinter Image
+    #             tkimage = ImageTk.PhotoImage(resized_image)
+
+    #             # Update the camera's image
+    #             if letter == 'p':
+    #                 self.img_p.configure(image= tkimage)
+    #             else:
+    #                 self.img_s.configure(image= tkimage)
+            
+    #             self.root.update()
+
+    #             # Release images from the buffers 
+    #             buffer_image.Release()
+    #         except Exception as ex:
+    #             print(ex)

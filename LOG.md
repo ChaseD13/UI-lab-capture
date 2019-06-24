@@ -87,3 +87,6 @@
 - Added entry to make hz between camera and labjack more clear
 - Frame id's are now added to a queue and exported into Additional docs
 - Data and cameras now return expected results :^)
+
+### 6/21 
+- Camera preview!

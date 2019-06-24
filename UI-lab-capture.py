@@ -18,7 +18,7 @@ except ImportError:  # Python 3
 from copy import deepcopy
 import sys
 import traceback
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageOps
 import signal
 import threading
 import csv
@@ -36,6 +36,7 @@ import csv
 class SettingsWindow():
     def __init__(self):
         self.now = datetime.datetime.now()
+        self.cont = True
         
     def prompt_window(self):
         #Initialize a window
@@ -92,6 +93,9 @@ class SettingsWindow():
 
         self.update_window() #Call to update the window when the user types in new values into the entry fields.
 
+        #Handle interrupt 
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
         #Start the window
         self.root.mainloop() 
 
@@ -105,6 +109,10 @@ class SettingsWindow():
     def submit_ad(self):
         self.root.after_cancel(self.after_event)
         self.root.destroy()
+
+    def on_closing(self):
+        self.cont = False
+        self.root.destroy()
     
     
 # Add funtions purpose here....
@@ -112,20 +120,27 @@ class SettingsWindow():
 # Functions: init_labjack, update_voltage, build_window, animate
 class UILabCapture():
     # Initialization; Takes in an active directory path as a parameter
-    def __init__(self, active_directory, primary_serial_number, fss):
+    def __init__(self, active_directory, primary_serial_number, fss, bsfl):
         self.filepath = active_directory # Active directory path is stored in a local varaible
         self.primary_sn = primary_serial_number # The serial number of the primary Blackfly S camera
         self.fileSplitSize = fss # The size of the file split
         self.image_queue_primary = Queue.Queue() # Shared queue between threads to save and record frames from the primary camera
         self.image_queue_secondary = Queue.Queue() # Shared queue between threads to save and record frames from the secondary camera
         self.running_experiment = False # Boolean value to keep track wther or not there is an experiment running currently
+        self.running_preview = False 
         self.missed_frames_p = 0 # (Primary) Counter for the number of missed frames during the stream
-        self.prev_frame_id_p = -1 # (Primary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
+        self.prev_frame_id_p = 0 # (Primary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
         self.missed_frames_s = 0 # (Secondary) Counter for the number of missed frames during the stream
-        self.prev_frame_id_s = -1 # (Secondary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
+        self.prev_frame_id_s = 0 # (Secondary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
         self.frame_id_queue_p = Queue.Queue() # Holds the sequential frame ids from the primary camera
         self.frame_id_queue_s = Queue.Queue() # Holds the sequential frame ids from the secondary camera
+        self.start_of_experiment_p = False  # Boolean used to signal when the primary camera starts its experiment
+        self.start_of_experiment_s = False # Boolean used to signal when the secondary camera starts its experiment
+        self.starting_frame_p = 0 # Holds the primary camera's starting frame id when an experiment is started
+        self.starting_frame_s = 0 # Holds the secondary camera's starting frame id when an experiment is started
+        self.basefile_name = bsfl # Holds the basefile name from the settings window
  
+
     # Builds the main GUI window 
     def build_window(self):
         # Initialize a window
@@ -171,8 +186,20 @@ class UILabCapture():
         #Labels
 
         # Label that is filling the space where the camera will be
-        self.cameras = tk.Label(self.camera_frame, text = "Space for Cameras", bg = "orange", height = 20)
-        self.cameras.pack(fill = "both")
+        # self.cameras = tk.Label(self.camera_frame, text = "Space for Cameras", bg = "orange", height = 20)
+        # self.cameras.pack(fill = "both")
+
+        # Frame to hold primary camera images
+        image_p = Image.open('voles.jpg')
+        photo_p = ImageTk.PhotoImage(image_p)
+        self.img_p = tk.Label(self.camera_frame, image = photo_p)
+        self.img_p.pack(padx = 20, pady = 20, side = 'left', fill = 'both', expand = 1)
+
+        # Frame to hold secondary camera images
+        image_s = Image.open('voles.jpg')
+        photo_s = ImageTk.PhotoImage(image_s)
+        self.img_s = tk.Label(self.camera_frame, image = photo_s)
+        self.img_s.pack(padx = 20, pady = 20, side = 'left', fill = 'both', expand = 1)
 
 
         # Labels for the FIO 0-7 ports on the labjacks
@@ -209,13 +236,15 @@ class UILabCapture():
         self.ain_seven.pack()
 
 
+        tk.Label(self.labjack_values, text= 'Labjack Scan Rate:').pack()
         self.scan_hz = tk.IntVar()
-        self.scan_hz.set("Labjack Scan rate...")
+        self.scan_hz.set("60")
         self.scan_space = tk.Entry(self.labjack_values, textvariable = self.scan_hz)
         self.scan_space.pack(padx = 10, pady = 10)
 
+        tk.Label(self.labjack_values, text= 'BlackFly FPS:').pack()
         self.frame_rate_input = tk.IntVar()
-        self.frame_rate_input.set("Camera FPS...")
+        self.frame_rate_input.set("60")
         self.scan_space = tk.Entry(self.labjack_values, textvariable = self.frame_rate_input)
         self.scan_space.pack(padx = 10, pady = 10)
 
@@ -236,14 +265,21 @@ class UILabCapture():
         tk.Label(self.labjack_values, textvariable= self.time_label).pack(padx = 10, pady = 10)
 
 
-        self.f = figure.Figure(figsize = (5,4))
+        self.f = figure.Figure(figsize = (4,3))
 
-        # Create a cnvas in the window to place the figure into 
+        # Create a canvas in the window to place the figure into 
         self.canvas = FigureCanvasTkAgg(self.f, self.scrolling_graph)
         self.canvas.get_tk_widget().pack(side = "top", fill = "both", expand = True)
         self.canvas.draw()
 
-        #Frame to hold camera images
+        # Call to initialize cameras and avi video
+        self.operate_cameras()
+        self.running_preview = True
+        self.thread_preview_p = threading.Thread(target= self.preview_and_acquire_images, args=(self.image_queue_primary, self.cam_primary, 'p', ), daemon= True)
+        self.thread_preview_s = threading.Thread(target= self.preview_and_acquire_images, args=(self.image_queue_secondary, self.cam_secondary, 's', ), daemon= True)
+        self.thread_preview_p.start()
+        self.thread_preview_s.start()
+
 
         #Handle interrupt 
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -367,8 +403,8 @@ class UILabCapture():
 
 
         #Set filename and options for both videos
-        filename_primary = 'SaveToAvi-MJPG-%s' % self.primary_sn
-        filename_seconday = 'SaveToAvi-MJPG-19061546' 
+        filename_primary = 'SaveToAvi-MJPG-%s-%s' % (self.primary_sn, self.basefile_name)
+        filename_seconday = 'SaveToAvi-MJPG-19061546-%s' % (self.basefile_name) 
         option_primary = PySpin.MJPGOption()
         option_secondary = PySpin.MJPGOption()
         option_primary.frameRate = self.frame_rate_input.get()
@@ -389,8 +425,8 @@ class UILabCapture():
         print("Total missed frames(Secondary): %d" % self.missed_frames_s)
 
         # Print total number of captured frames
-        print("Total frames captured(Primary): %d" % self.prev_frame_id_p)
-        print("Total frames captured(Secondary): %d" % self.prev_frame_id_s)
+        print("Total frames captured(Primary): %d" % (self.prev_frame_id_p - self.starting_frame_p - 1))
+        print("Total frames captured(Secondary): %d" % (self.prev_frame_id_s - self.starting_frame_s - 1))
 
         # If dne this will create the file at the specified location;
         os.makedirs(os.path.dirname('C://Users/Behavior Scoring/Desktop/UI-lab-capture/Additional docs/primary_frames.csv'), exist_ok=True)
@@ -415,20 +451,6 @@ class UILabCapture():
         #Close the recording files
         self.avi_video_primary.Close()
         self.avi_video_secondary.Close()
-
-        # Stop acquisition
-        self.cam_secondary.EndAcquisition()
-        self.cam_primary.EndAcquisition()
-
-
-        # De-initialize
-        self.cam_primary.DeInit()
-        self.cam_secondary.DeInit()
-
-        # Delete Assets
-        del self.cam_primary
-        del self.cam_secondary
-        del self.cam_list
 
 
     # While experiment is running, retrieves frames from the camera, puts them into the shared queue, and releses them from the buffer
@@ -461,6 +483,7 @@ class UILabCapture():
 
 
     # Using the shared queue and while experiment is running, dequeues frames and appends them to the end of the avi recording
+    # NOTE: Threaded
     def append_to_video(self, q, video):
         while self.running_experiment or not q.empty():
             try:
@@ -478,6 +501,9 @@ class UILabCapture():
     def start_gui(self):
         # The experiment has started running
         self.running_experiment = True
+        self.running_preview = False
+        self.start_of_experiment_p = True
+        self.start_of_experiment_s = True
 
         # Time the experiment was started
         self.start_time = datetime.datetime.now()
@@ -489,7 +515,7 @@ class UILabCapture():
         self.datetimeFormat = '%Y-%m-%d %I:%M:%S.%f'
 
         # Time between scans in seconds
-        self.tbs = 1.0/self.scan_hz.get()
+        self.tbs = 1.0/self.frame_rate_input.get()
 
         # Convert the given hz into milliseconds
         self.hz_to_mil = int(self.tbs * 1000)
@@ -521,6 +547,8 @@ class UILabCapture():
         # Call to initalize the Labjack
         self.init_labjack() 
 
+        #self.operate_cameras()
+
         # Create the file for writing data out to disk
 
         # If dne this will create the file at the specified location;
@@ -546,19 +574,17 @@ class UILabCapture():
         #Labels for the tops of the channels seperated by three tabs
         self.f.write("Time\t\t   v0\t\t   v1\t\t   v2\t\t   v3\t\t   v4\t\t   v5\t\t   v6\t\t   v7\t\t   y0\t\t   y1\t\t   y2\t\t   y3\t\t   y4\t\t   y5\t\t   y6\t\t   y7 \n")
         
+        #Call to update function to begin the animation of the GUI
         self.update_gui()
 
-        # Call to initialize cameras and avi video
-        self.operate_cameras()
-
         # Start processes to begin the capturing from the Blackfly camera
-        self.thread1_p = threading.Thread(target= self.acquire_frames, args=(self.image_queue_primary,  self.cam_primary, 'p', ), daemon= True)
+        #self.thread1_p = threading.Thread(target= self.acquire_frames, args=(self.image_queue_primary,  self.cam_primary, 'p', ), daemon= True)
         self.thread2_p = threading.Thread(target= self.append_to_video, args=(self.image_queue_primary, self.avi_video_primary, ), daemon= True)
-        self.thread1_s = threading.Thread(target= self.acquire_frames, args=(self.image_queue_secondary, self.cam_secondary, 's', ), daemon= True)
+        #self.thread1_s = threading.Thread(target= self.acquire_frames, args=(self.image_queue_secondary, self.cam_secondary, 's', ), daemon= True)
         self.thread2_s = threading.Thread(target= self.append_to_video, args=(self.image_queue_secondary, self.avi_video_secondary, ), daemon= True)
-        self.thread1_p.start()
+        #self.thread1_p.start()
         self.thread2_p.start()
-        self.thread1_s.start()
+        #self.thread1_s.start()
         self.thread2_s.start()
 
         # Start Timer
@@ -566,23 +592,11 @@ class UILabCapture():
         self.timer_thread.start()
 
 
-
-        #Call to update function to begin the animation of the GUI
-        #self.update_gui()
-
-
     # A function to stop the current experiment and revert the GUI back to a clean state
     def stop_gui(self):
         # The experiment is no longer running
+        self.running_preview = True
         self.running_experiment = False
-
-        # Wait for the processes to terminate
-        self.thread1_p.join()
-        self.thread1_s.join()
-        self.thread2_p.join()
-        self.thread2_s.join()
-
-        self.timer_thread.join()
 
         # Call function to handle closing of the cameras and video
         self.deoperate_cameras()
@@ -621,10 +635,6 @@ class UILabCapture():
         # Resets the fps entry
         self.frame_rate_input.set("Camera FPS...")
 
-
-        # Close all UD driver opened devices in the process
-        LabJackPython.Close() 
-
         self.image_queue_primary = Queue.Queue() # Shared queue between threads to save and record frames from the primary camera
         self.image_queue_secondary = Queue.Queue() # Shared queue between threads to save and record frames from the secondary camera
         self.missed_frames_p = 0 # (Primary) Counter for the number of missed frames during the stream
@@ -633,6 +643,29 @@ class UILabCapture():
         self.prev_frame_id_s = -1 # (Secondary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
         self.frame_id_queue_p = Queue.Queue()
         self.frame_id_queue_s = Queue.Queue()
+        
+        self.on_closing()
+
+
+    # A function to handle closing the hardware when the window is closed
+    def shutdown_gui(self):
+        self.running_preview = False
+
+        # Stop acquisition
+        self.cam_secondary.EndAcquisition()
+        self.cam_primary.EndAcquisition()
+
+        # De-initialize cameras
+        self.cam_primary.DeInit()
+        self.cam_secondary.DeInit()
+
+        # Delete Assets
+        del self.cam_primary
+        del self.cam_secondary
+        del self.cam_list
+
+        # Close all UD driver opened devices in the process
+        LabJackPython.Close() 
 
 
     # Holds the function calls that need to be updated based on hz
@@ -746,11 +779,13 @@ class UILabCapture():
     # Handles an interrupt made during an experiment
     def on_closing(self):
         if self.running_experiment:
-            self.stop_gui()
+            self.running_experiment = False
+            self.shutdown_gui()
             self.root.destroy()
         else:
+            self.shutdown_gui()
             self.root.destroy()
-
+            
 
     # Handles incremeting of the timer
     # TODO: Figure out how to parse timedelta
@@ -761,35 +796,100 @@ class UILabCapture():
             time.sleep(1)
 
 
+    # Handles live view of the cameras and stores images in shared queue once experiment is started
+    # TODO: Primary camera spazs out sometimes
+    # NOTE: Threaded
+    def preview_and_acquire_images(self, q, cam, letter):
+        while self.running_preview or self.running_experiment:
+            try:
+                # Grab frames from camera's buffer
+                buffer_image = cam.GetNextImage()
+                # Converts the grabbed image from ram into an Numpy array
+                bimg = buffer_image.GetNDArray()
+                # Transforms the numpy array into a PIL image
+                image = Image.fromarray(bimg)
+                #Resize image to fit nicely on GUI
+                resized_image = image.resize((439 ,350), Image.ANTIALIAS)
+                # Transfroms PIL image into a Tkinter Image
+                tkimage = ImageTk.PhotoImage(resized_image)
+
+                # Update the camera's image
+                if letter == 'p':
+                    self.img_p.configure(image= tkimage)
+                else:
+                    self.img_s.configure(image= tkimage)
+
+                # Executed when the user hits the start button
+                if self.running_experiment:
+                    # Executed the first time the function is called
+                    if self.start_of_experiment_p and letter == 'p':
+                        self.prev_frame_id_p = int(buffer_image.GetFrameID() - 1)
+                        self.starting_frame_p = int(buffer_image.GetFrameID() - 1)
+                        self.start_of_experiment_p = False
+                    elif self.start_of_experiment_s:
+                        self.prev_frame_id_s = int(buffer_image.GetFrameID() - 1)
+                        self.starting_frame_s = int(buffer_image.GetFrameID() - 1)
+                        self.start_of_experiment_s = False
+
+                    # Store frames into shared queue for camera
+                    q.put(buffer_image)
+
+                    # Checks if the frames from the camera are sequential; Increments if the frames are not sequential
+                    if letter == 'p':
+                        if int(buffer_image.GetFrameID()) != (self.prev_frame_id_p + 1):
+                            self.missed_frames_p += int(buffer_image.GetFrameID()) - self.prev_frame_id_p
+                        self.prev_frame_id_p = int(buffer_image.GetFrameID())
+                        self.frame_id_queue_p.put(int(buffer_image.GetFrameID()))
+                    else:
+                        if int(buffer_image.GetFrameID()) != (self.prev_frame_id_s + 1):
+                            self.missed_frames_s += int(buffer_image.GetFrameID()) - self.prev_frame_id_s
+                        self.prev_frame_id_s = int(buffer_image.GetFrameID())
+                        self.frame_id_queue_s.put(int(buffer_image.GetFrameID()))
+
+                # Release images from the buffers 
+                buffer_image.Release()
+
+            except Exception as ex:
+                print(ex)
+
+            self.root.update()
+
+
 # MAIN - Creates a startup window and the main GUI. Passes variables from startup window to the main window
 def main():
+    while True:
+        # Make a call to the SettingsWindow class which starts the intial prompt screen to set the avtive directory
+        # Properties: now, ad_var
+        # Functions: prompt_window, update_window, submit_ad
 
-    # Make a call to the SettingsWindow class which starts the intial prompt screen to set the avtive directory
-    # Properties: now, ad_var
-    # Functions: prompt_window, update_window, submit_ad
+        # Instance of a SettingsWindow
+        startwindow = SettingsWindow() 
 
-    # Instance of a SettingsWindow
-    startwindow = SettingsWindow() 
+        # Call the propmt_window function to create the startup window
+        startwindow.prompt_window()
 
-    # Call the propmt_window function to create the startup window
-    startwindow.prompt_window()
+        if startwindow.cont:
+            # Store the active directory set by the user into an easy to identify variable: ad
+            ad = startwindow.ad_var.get()
+            # Stores the serial number of the primary camera
+            psn = startwindow.pcamera_var.get()
+            # Stores the file split size
+            fss = startwindow.splitsize_var.get()
+            # Stores the base file name
+            bsfl = startwindow.basefile_var.get()
 
-    # Store the active directory set by the user into an easy to identify variable: ad
-    ad = startwindow.ad_var.get()
-    # Stores the serial number of the primary camera
-    psn = startwindow.pcamera_var.get()
-    # Stores the file split size
-    fss = startwindow.splitsize_var.get()
 
+            # Make a call to the UILabCapture class which contains functions for the main GUI window
+            # Properties: None
+            # Functions: init_labjack, update_voltage, build_window
+            # app is a UILabCapture instance
+            app = UILabCapture(ad, psn, fss, bsfl) 
 
-    # Make a call to the UILabCapture class which contains functions for the main GUI window
-    # Properties: None
-    # Functions: init_labjack, update_voltage, build_window
-    # app is a UILabCapture instance
-    app = UILabCapture(ad, psn, fss) 
+            #Call the build_window to create the main GUI window and starts the GUI
+            app.build_window()
+        else:
+            return 0
 
-    #Call the build_window to create the main GUI window and starts the GUI
-    app.build_window()
 
 # Indicates that the python script will be run directly, and not imported by something else; Include an else to handle importing
 if __name__ == '__main__':
