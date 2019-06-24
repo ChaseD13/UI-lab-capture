@@ -1,6 +1,6 @@
 # UI-lab-capture
 
-An interface designed to make the scientists job easier by providing a  simple, yet effective way of setting up their cameras and starting their data collection. 
+An interface designed to make a scientists job easier by providing a  simple, yet effective way of setting up two USB3 BlackFly S cameras and starting their data collection from a Labjack U3-LV.
 
 ## Getting Started
 
