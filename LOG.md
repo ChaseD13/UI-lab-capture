@@ -90,3 +90,9 @@
 
 ### 6/21 
 - Camera preview!
+
+### 6/24
+- BETA!!!
+    * Ready for versioning 
+- Supports consecutive experiments 
+- Frame checker updated
