@@ -2,11 +2,9 @@ import u3
 import LabJackPython
 import time
 import tkinter as tk
-import datetime  #now.strftime("%Y-%m-%d %H:%M")
+import datetime 
 import matplotlib.figure as figure
 import matplotlib.animation as animation
-import matplotlib.pylab as plt
-import matplotlib.dates as mdates
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
 import PySpin
@@ -15,13 +13,9 @@ try:
     import Queue
 except ImportError:  # Python 3
     import queue as Queue
-from copy import deepcopy
 import sys
-import traceback
 from PIL import Image, ImageTk, ImageOps
-import signal
 import threading
-import csv
 
 
 # NOTE: Scaling functionality for labjack data not neccessary at the moment
