@@ -120,7 +120,7 @@ class SettingsWindow():
 # Functions: init_labjack, update_voltage, build_window, animate
 class UILabCapture():
     # Initialization; Takes in an active directory path as a parameter
-    def __init__(self, active_directory, primary_serial_number, fss, bsfl):
+    def __init__(self, active_directory, primary_serial_number, fss, bsfl, wd):
         self.filepath = active_directory # Active directory path is stored in a local varaible
         self.primary_sn = primary_serial_number # The serial number of the primary Blackfly S camera
         self.fileSplitSize = fss # The size of the file split
@@ -139,6 +139,8 @@ class UILabCapture():
         self.starting_frame_p = 0 # Holds the primary camera's starting frame id when an experiment is started
         self.starting_frame_s = 0 # Holds the secondary camera's starting frame id when an experiment is started
         self.basefile_name = bsfl # Holds the basefile name from the settings window
+        self.working_directory = wd # Holds the file path designated by the user
+        self.create_filesystem()
  
 
     # Builds the main GUI window 
@@ -403,8 +405,8 @@ class UILabCapture():
 
 
         #Set filename and options for both videos
-        filename_primary = 'SaveToAvi-MJPG-%s-%s' % (self.primary_sn, self.basefile_name)
-        filename_seconday = 'SaveToAvi-MJPG-19061546-%s' % (self.basefile_name) 
+        filename_primary = self.working_directory + '/SaveToAvi-MJPG-%d-%s' % (self.primary_sn, self.basefile_name)
+        filename_seconday = self.working_directory + '/SaveToAvi-MJPG-19061546-%s' % (self.basefile_name) 
         option_primary = PySpin.MJPGOption()
         option_secondary = PySpin.MJPGOption()
         option_primary.frameRate = self.frame_rate_input.get()
@@ -429,13 +431,13 @@ class UILabCapture():
         print("Total frames captured(Secondary): %d" % (self.prev_frame_id_s - self.starting_frame_s - 1))
 
         # If dne this will create the file at the specified location;
-        os.makedirs(os.path.dirname('C://Users/Behavior Scoring/Desktop/UI-lab-capture/Additional docs/primary_frames.csv'), exist_ok=True)
+        os.makedirs(os.path.dirname(self.working_directory + '/primary_frames.csv'), exist_ok=True)
         # Open a file at the selected file path; 
-        self.file_p = open('C://Users/Behavior Scoring/Desktop/UI-lab-capture/Additional docs/primary_frames.csv', "w")
+        self.file_p = open(self.working_directory + '/primary_frames.csv', "w")
         # If dne this will create the file at the specified location;
-        os.makedirs(os.path.dirname('C://Users/Behavior Scoring/Desktop/UI-lab-capture/Additional docs/secondary_frames.csv'), exist_ok=True)
+        os.makedirs(os.path.dirname(self.working_directory + '/secondary_frames.csv'), exist_ok=True)
         # Open a file at the selected file path; 
-        self.file_s = open('C://Users/Behavior Scoring/Desktop/UI-lab-capture/Additional docs/secondary_frames.csv', "w")
+        self.file_s = open(self.working_directory + '/secondary_frames.csv', "w")
         
         # Prints the queue of frime ids out to disk(Primary)
         for i in range(self.frame_id_queue_p.qsize()):
@@ -856,16 +858,22 @@ class UILabCapture():
 
 
     #Used to create and format the filesystem using information provided from the settings window
-    # TODO: Create a folder for the information
     # TODO: Create append to the LOG file with the last location of where information was saved
     def create_filesystem(self):
         try:
             #Create a folder to hold all aquired data
-            os.makedirs(self.filepath)
+            os.makedirs(self.working_directory)
+        except OSError as ex:
+            print(ex)
 
+        try:
             #Record working directory into the LOG.md
 
-        except OSError as ex:
+            # Open a file at the selected file path; If it dne, create a new one
+            self.file_log = open(self.working_directory + '/LOG.txt', "a+")
+            self.file_log.write( self.working_directory + '\n')
+            self.file_log.close()
+        except OSError as ex: 
             print(ex)
 
 
@@ -891,13 +899,15 @@ def main():
             fss = startwindow.splitsize_var.get()
             # Stores the base file name
             bsfl = startwindow.basefile_var.get()
+            # Get the file path for the working directory 
+            wd = startwindow.wd_var.get()
 
 
             # Make a call to the UILabCapture class which contains functions for the main GUI window
             # Properties: None
             # Functions: init_labjack, update_voltage, build_window
             # app is a UILabCapture instance
-            app = UILabCapture(ad, psn, fss, bsfl) 
+            app = UILabCapture(ad, psn, fss, bsfl, wd) 
 
             #Call the build_window to create the main GUI window and starts the GUI
             app.build_window()
