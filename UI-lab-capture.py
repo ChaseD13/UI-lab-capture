@@ -186,15 +186,11 @@ class UILabCapture():
         # self.cameras.pack(fill = "both")
 
         # Frame to hold primary camera images
-        image_p = Image.open('voles.jpg')
-        photo_p = ImageTk.PhotoImage(image_p)
-        self.img_p = tk.Label(self.camera_frame, image = photo_p)
+        self.img_p = tk.Label(self.camera_frame)
         self.img_p.pack(padx = 20, pady = 20, side = 'left', fill = 'both', expand = 1)
 
         # Frame to hold secondary camera images
-        image_s = Image.open('voles.jpg')
-        photo_s = ImageTk.PhotoImage(image_s)
-        self.img_s = tk.Label(self.camera_frame, image = photo_s)
+        self.img_s = tk.Label(self.camera_frame)
         self.img_s.pack(padx = 20, pady = 20, side = 'left', fill = 'both', expand = 1)
 
 
@@ -234,13 +230,13 @@ class UILabCapture():
 
         tk.Label(self.labjack_values, text= 'Labjack Scan Rate:').pack()
         self.scan_hz = tk.IntVar()
-        self.scan_hz.set("60")
+        self.scan_hz.set("200")
         self.scan_space = tk.Entry(self.labjack_values, textvariable = self.scan_hz)
         self.scan_space.pack(padx = 10, pady = 10)
 
         tk.Label(self.labjack_values, text= 'BlackFly FPS:').pack()
         self.frame_rate_input = tk.IntVar()
-        self.frame_rate_input.set("60")
+        self.frame_rate_input.set("30")
         self.scan_space = tk.Entry(self.labjack_values, textvariable = self.frame_rate_input)
         self.scan_space.pack(padx = 10, pady = 10)
 
@@ -400,7 +396,7 @@ class UILabCapture():
 
         #Set filename and options for both videos
         filename_primary = self.working_directory + '/SaveToAvi-MJPG-%d-%s' % (self.primary_sn, self.basefile_name)
-        filename_seconday = self.working_directory + '/SaveToAvi-MJPG-19061546-%s' % (self.basefile_name) 
+        filename_seconday = self.working_directory + '/SaveToAvi-MJPG-%s-%s' % (self.cam_secondary.GetUniqueID() , self.basefile_name) 
         option_primary = PySpin.MJPGOption()
         option_secondary = PySpin.MJPGOption()
         option_primary.frameRate = self.frame_rate_input.get()
@@ -425,11 +421,11 @@ class UILabCapture():
         print("Total frames captured(Secondary): %d" % (self.prev_frame_id_s - self.starting_frame_s - 1))
 
         # If dne this will create the file at the specified location;
-        os.makedirs(os.path.dirname(self.working_directory + '/primary_frames.csv'), exist_ok=True)
+        os.makedirs(os.path.dirname(self.working_directory + '/primary_frames.csv'), exist_ok= True)
         # Open a file at the selected file path; 
         self.file_p = open(self.working_directory + '/primary_frames.csv', "w")
         # If dne this will create the file at the specified location;
-        os.makedirs(os.path.dirname(self.working_directory + '/secondary_frames.csv'), exist_ok=True)
+        os.makedirs(os.path.dirname(self.working_directory + '/secondary_frames.csv'), exist_ok= True)
         # Open a file at the selected file path; 
         self.file_s = open(self.working_directory + '/secondary_frames.csv', "w")
         
@@ -511,13 +507,14 @@ class UILabCapture():
         self.datetimeFormat = '%Y-%m-%d %I:%M:%S.%f'
 
         # Time between scans in seconds
-        self.tbs = 1.0/self.frame_rate_input.get()
+        self.tbs = 1.0/self.scan_hz.get()
 
         # Convert the given hz into milliseconds
         self.hz_to_mil = int(self.tbs * 1000)
 
         # Max items in Labjack values list = Twice the number of events per second
-        self.max_items = 2 * self.scan_hz.get()
+        #self.max_items = 2 * self.scan_hz.get()
+        self.max_items = self.scan_hz.get()
 
         # Analog input lists from the Labjack, initalized with 2x set hz rate of 0's 
         self.data_ain0 = [0] * self.max_items
@@ -531,7 +528,7 @@ class UILabCapture():
 
         # Set an array to hold time incriments
         self.time_inc = []
-        for x in np.arange(0.0, 2.0, 2/self.max_items):
+        for x in np.arange(0.0, 1.0, 1/self.max_items):
             self.time_inc.append(x)
 
         # Create a subplot in the canvas f
@@ -615,7 +612,7 @@ class UILabCapture():
         # Removes the subplot from the canvas, creates a clean subplot for looks
         self.ax1.clear()
         # Set fixed axis values
-        self.ax1.set_xlim([0,2])
+        self.ax1.set_xlim([0,1])
         self.ax1.set_ylim([-.5,5])
         #Label axes
         self.ax1.set_xlabel('time (s)')
@@ -748,7 +745,7 @@ class UILabCapture():
         self.ax1.clear()
 
         # Set fixed axis values
-        # self.ax1.set_xlim([0,2])
+        self.ax1.set_xlim([0,1])
         self.ax1.set_ylim([-.5,5])
 
         # Label axes
