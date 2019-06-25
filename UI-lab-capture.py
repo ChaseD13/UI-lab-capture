@@ -797,7 +797,7 @@ class UILabCapture():
 
 
     # Handles live view of the cameras and stores images in shared queue once experiment is started
-    # TODO: Primary camera spazs out sometimes
+    # TODO: Camera spazs?!?
     # NOTE: Threaded
     def preview_and_acquire_images(self, q, cam, letter):
         while self.running_preview or self.running_experiment:
@@ -853,6 +853,20 @@ class UILabCapture():
                 print(ex)
 
             self.root.update()
+
+
+    #Used to create and format the filesystem using information provided from the settings window
+    # TODO: Create a folder for the information
+    # TODO: Create append to the LOG file with the last location of where information was saved
+    def create_filesystem(self):
+        try:
+            #Create a folder to hold all aquired data
+            os.makedirs(self.filepath)
+
+            #Record working directory into the LOG.md
+
+        except OSError as ex:
+            print(ex)
 
 
 # MAIN - Creates a startup window and the main GUI. Passes variables from startup window to the main window
