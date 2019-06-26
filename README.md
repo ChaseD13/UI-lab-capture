@@ -7,6 +7,7 @@ An interface designed to make a scientists job easier by providing a  simple, ye
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. See deployment for notes on how to deploy the project on a live system.
 
 ### Prerequisites
+Run in a windows 10 environment using Anaconda 4.7.5 and python 3.7.3
 
 - Spinnaker SDK
   - _Included in Additional docs_
@@ -111,26 +112,21 @@ Add additional notes about how to deploy this on a live system
 * [Maven](https://maven.apache.org/) - Dependency Management
 * [ROME](https://rometools.github.io/rome/) - Used to generate RSS Feeds
 
-## Contributing
-
-Please read [CONTRIBUTING.md](https://gist.github.com/PurpleBooth/b24679402957c63ec426) for details on our code of conduct, and the process for submitting pull requests to us.
 
 ## Versioning
 
-We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/your/project/tags). 
+We use species for versioning. For the versions available, see the [tags on this repository](https://github.com/donaldsonlab/UI-lab-capture/tags). 
 
 ## Authors
 
-* **Billie Thompson** - *Initial work* - [PurpleBooth](https://github.com/PurpleBooth)
-
-See also the list of [contributors](https://github.com/your/project/contributors) who participated in this project.
+* **Chase Dudas** - *GUI/Scripts* - [Personal GitHub](https://github.com/CDudas13)
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
+This project is not licensed
 
 ## Acknowledgments
 
-* Hat tip to anyone whose code was used
-* Inspiration
+* Big thanks to **Kevin Chen** @ FLIR for helping troubleshoot issues with the Blackfly S cameras
+* David Protter w/ Donaldson Lab
 * etc
