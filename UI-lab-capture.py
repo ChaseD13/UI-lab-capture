@@ -531,7 +531,7 @@ class UILabCapture():
 
         # Set an array to hold time incriments
         self.time_inc = []
-        for x in np.arange(0.0, 1.0, 1/self.max_items):
+        for x in np.arange(0.0, self.hz_to_mil, self.hz_to_mil/self.max_items):
             self.time_inc.append(x)
 
         # Create a subplot in the canvas f
@@ -748,7 +748,7 @@ class UILabCapture():
         self.ax1.clear()
 
         # Set fixed axis values
-        self.ax1.set_xlim([0,1])
+        self.ax1.set_xlim([0,self.hz_to_mil])
         self.ax1.set_ylim([-.5,5])
 
         # Label axes
