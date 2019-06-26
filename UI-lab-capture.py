@@ -411,7 +411,6 @@ class UILabCapture():
 
     # Handles the closing and deinitialization of both cameras and the avi video 
     def deoperate_cameras(self):
-
         # Print the number of dropped frames
         print("Total missed frames(Primary): %d" % self.missed_frames_p)
         print("Total missed frames(Secondary): %d" % self.missed_frames_s)
@@ -437,10 +436,15 @@ class UILabCapture():
         for i in range(self.frame_id_queue_s.qsize()):
             self.file_s.write(str(self.frame_id_queue_s.get()) + '\n')
 
+        # Close frame count files
         self.file_p.close()
         self.file_s.close()
 
-        #Close the recording files
+        # Join the appending threds afte they have finished flushing the queue
+        self.thread2_p.join()
+        self.thread2_s.join()
+
+        # Close the recording files
         self.avi_video_primary.Close()
         self.avi_video_secondary.Close()
 
@@ -503,8 +507,8 @@ class UILabCapture():
         # Update counter for the graph to keep measurements in time of one second
         self.curtime = 0.000000
 
-        # Updates with the timer function. Keeps track of total seconds elapsed during experiment
-        self.total_seconds = 0
+        # Updates with the timer function. Keeps track of total seconds elapsed during experiment. Negative to offset the second it takes to aquire the first second of data
+        self.total_seconds = -1
 
         # Set the standard datetime format
         self.datetimeFormat = '%Y-%m-%d %I:%M:%S.%f'
@@ -542,8 +546,6 @@ class UILabCapture():
 
         # Call to initalize the Labjack
         self.init_labjack() 
-
-        #self.operate_cameras()
 
         # Create the file for writing data out to disk
 
@@ -591,7 +593,7 @@ class UILabCapture():
     # A function to stop the current experiment and revert the GUI back to a clean state
     def stop_gui(self):
         # The experiment is no longer running
-        self.running_preview = True
+        self.running_preview = False
         self.running_experiment = False
 
         # Call function to handle closing of the cameras and video
@@ -606,14 +608,14 @@ class UILabCapture():
         except Exception as ex:
             print(ex)
 
-        self.var0.set("0") # Resets voltage being read from the labjack at FIO0
-        self.var1.set("0") # Resets voltage being read from the labjack at FIO1
-        self.var2.set("0") # Resets voltage being read from the labjack at FIO2
-        self.var3.set("0") # Resets voltage being read from the labjack at FIO3
-        self.var4.set("0") # Resets voltage being read from the labjack at FIO4
-        self.var5.set("0") # Resets voltage being read from the labjack at FIO5
-        self.var6.set("0") # Resets voltage being read from the labjack at FIO6
-        self.var7.set("0") # Resets voltage being read from the labjack at FIO7
+        # self.var0.set("0") # Resets voltage being read from the labjack at FIO0
+        # self.var1.set("0") # Resets voltage being read from the labjack at FIO1
+        # self.var2.set("0") # Resets voltage being read from the labjack at FIO2
+        # self.var3.set("0") # Resets voltage being read from the labjack at FIO3
+        # self.var4.set("0") # Resets voltage being read from the labjack at FIO4
+        # self.var5.set("0") # Resets voltage being read from the labjack at FIO5
+        # self.var6.set("0") # Resets voltage being read from the labjack at FIO6
+        # self.var7.set("0") # Resets voltage being read from the labjack at FIO7
 
         # Removes the subplot from the canvas, creates a clean subplot for looks
         self.ax1.clear()
@@ -628,27 +630,26 @@ class UILabCapture():
         # Closes the data file
         self.f.close()
 
-        # Resets the scan hz entry
-        self.scan_hz.set("Labjack Scan rate...")
+        # # Resets the scan hz entry
+        # self.scan_hz.set("Labjack Scan rate...")
 
-        # Resets the fps entry
-        self.frame_rate_input.set("Camera FPS...")
+        # # Resets the fps entry
+        # self.frame_rate_input.set("Camera FPS...")
 
-        self.image_queue_primary = Queue.Queue() # Shared queue between threads to save and record frames from the primary camera
-        self.image_queue_secondary = Queue.Queue() # Shared queue between threads to save and record frames from the secondary camera
-        self.missed_frames_p = 0 # (Primary) Counter for the number of missed frames during the stream
-        self.prev_frame_id_p = -1 # (Primary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
-        self.missed_frames_s = 0 # (Secondary) Counter for the number of missed frames during the stream
-        self.prev_frame_id_s = -1 # (Secondary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
-        self.frame_id_queue_p = Queue.Queue()
-        self.frame_id_queue_s = Queue.Queue()
+        # self.image_queue_primary = Queue.Queue() # Shared queue between threads to save and record frames from the primary camera
+        # self.image_queue_secondary = Queue.Queue() # Shared queue between threads to save and record frames from the secondary camera
+        # self.missed_frames_p = 0 # (Primary) Counter for the number of missed frames during the stream
+        # self.prev_frame_id_p = -1 # (Primary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
+        # self.missed_frames_s = 0 # (Secondary) Counter for the number of missed frames during the stream
+        # self.prev_frame_id_s = -1 # (Secondary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
+        # self.frame_id_queue_p = Queue.Queue()
+        # self.frame_id_queue_s = Queue.Queue()
         
         self.on_closing()
 
 
     # A function to handle closing the hardware when the window is closed
     def shutdown_gui(self):
-        self.running_preview = False
 
         # Stop acquisition
         self.cam_secondary.EndAcquisition()
@@ -840,10 +841,10 @@ class UILabCapture():
                 # Release images from the buffers 
                 buffer_image.Release()
 
+                self.root.update()
+
             except Exception as ex:
                 print(ex)
-
-            self.root.update()
 
 
     #Used to create and format the filesystem using information provided from the settings window
