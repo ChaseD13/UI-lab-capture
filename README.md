@@ -119,7 +119,7 @@ We use species for versioning. For the versions available, see the [tags on this
 
 ## Authors
 
-* **Chase Dudas** - *GUI/Scripts* - [Personal GitHub](https://github.com/CDudas13)
+* **Chase Dudas** - *GUI/Scripts* - [Personal GitHub](https://github.com/ChaseD13)
 
 ## License
 
