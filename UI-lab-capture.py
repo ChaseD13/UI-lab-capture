@@ -517,7 +517,7 @@ class UILabCapture():
 
         # Max items in Labjack values list = Twice the number of events per second
         #self.max_items = 2 * self.scan_hz.get()
-        self.max_items = self.scan_hz.get()
+        self.max_items = self.scan_hz.get() * self.hz_to_mil
 
         # Analog input lists from the Labjack, initalized with 2x set hz rate of 0's 
         self.data_ain0 = [0] * self.max_items
@@ -596,6 +596,9 @@ class UILabCapture():
 
         # Call function to handle closing of the cameras and video
         self.deoperate_cameras()
+
+        m, s = divmod(self.total_seconds, 60)
+        print('Experiment ran for: %d minute(s), %d seconds' % (m, s))
 
         # Stops the call to update being made in update_gui
         try:
@@ -714,14 +717,6 @@ class UILabCapture():
         self.data = [times, new_data_ain0, new_data_ain1, new_data_ain2, new_data_ain3, new_data_ain4, new_data_ain5,new_data_ain6, new_data_ain7]
 
         # Write the values out to file
-        # self.write_to_file('AIN0', new_data_ain0)
-        # self.write_to_file('AIN1', new_data_ain1)
-        # self.write_to_file('AIN2', new_data_ain2)
-        # self.write_to_file('AIN3', new_data_ain3)
-        # self.write_to_file('AIN4', new_data_ain4)
-        # self.write_to_file('AIN5', new_data_ain5)
-        # self.write_to_file('AIN6', new_data_ain6)
-        # self.write_to_file('AIN7', new_data_ain7)
         self.write_to_file(self.data)
 
         # Extends on the new data into data
