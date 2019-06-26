@@ -10,27 +10,53 @@ These instructions will get you a copy of the project up and running on your loc
 
 What things you need to install the software and how to install them
 
-```
-Give examples
-```
+- Spinnaker SDK
+
+- LabJackPython
+
+- Python 3
+
+- Anaconda
 
 ### Installing
 
-A step by step series of examples that tell you how to get a development env running
+#### Setting up the Anaconda environment-
 
-Say what the step will be
+1. Open the Anaconda prompt
 
-```
-Give the example
-```
+2. Change directories:
+  - **cd (File path where repo was cloned or downloaded)\UI-lab-capture\Additional docs**
 
-And repeat
+3. Create the Anaconda Environment:
+  - **conda env create -f LabCaptureEnvironment.yml -n environmentName**
+    - _Replace environmentName with the name you want for the environment_
 
-```
-until finished
-```
+4. Activate the environment:
+  - **conda activate environmentName**
+    - _Replace environmentName with the name from the last step_
 
-End with an example of getting some data out of the system or using it for a little demo
+#### Install the Labjack API-
+
+1. Change directories:
+  - **cd (current directory)\LabJackPython-2.0.0\LabJackPython-2.0.0**
+  
+2. Run the setup script
+  - **python setup.py install**
+  
+3. Return to additional docs:
+  - **cd ..\..**
+
+#### Install the Spinnaker(PySpin) API-
+
+1. Change directories:
+  - **cd (current directory)\Latest Python Spinnaker\Latest Python Spinnaker\spinnaker_python-1.23.0.27-cpxx-cpxxm-win_amd64**
+    - _For my env, version cp37-cp37m was used_
+  
+2. Install PySpin to your associated python version:
+  - **python -m pip install spinnaker_python-1.23.0.27-cpxx-cpxxm-win_amd64.whl**
+
+3. Return to main directory UI-lab-capture:
+  - **cd ..\..\..\..**
 
 ## Running the tests
 
