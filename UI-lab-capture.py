@@ -252,7 +252,7 @@ class UILabCapture():
 
         # Total time experied
         self.time_label = tk.IntVar()
-        self.time_label.set('00:00')
+        self.time_label.set('0 minute(s), 0 seconds')
         tk.Label(self.labjack_values, text= 'Experiment Time:').pack(padx = 10, pady = 10)
         tk.Label(self.labjack_values, textvariable= self.time_label).pack(padx = 10, pady = 10)
 
@@ -502,6 +502,9 @@ class UILabCapture():
 
         # Update counter for the graph to keep measurements in time of one second
         self.curtime = 0.000000
+
+        # Updates with the timer function. Keeps track of total seconds elapsed during experiment
+        self.total_seconds = 0
 
         # Set the standard datetime format
         self.datetimeFormat = '%Y-%m-%d %I:%M:%S.%f'
@@ -781,11 +784,11 @@ class UILabCapture():
             
 
     # Handles incremeting of the timer
-    # TODO: Figure out how to parse timedelta
     def timer(self, start_time):
         while self.running_experiment:
-            #timer = str(datetime.datetime.now() - self.start_time)
-            self.time_label.set(datetime.datetime.now() - self.start_time)
+            self.total_seconds += 1
+            m, s = divmod(self.total_seconds, 60)
+            self.time_label.set('%d minute(s), %d seconds' % (m, s))
             time.sleep(1)
 
 
@@ -849,7 +852,6 @@ class UILabCapture():
 
 
     #Used to create and format the filesystem using information provided from the settings window
-    # TODO: Create append to the LOG file with the last location of where information was saved
     def create_filesystem(self):
         try:
             #Create a folder to hold all aquired data
