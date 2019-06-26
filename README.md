@@ -25,38 +25,59 @@ What things you need to install the software and how to install them
 1. Open the Anaconda prompt
 
 2. Change directories:
-  - **cd (File path where repo was cloned or downloaded)\UI-lab-capture\Additional docs**
+```
+cd (File path where repo was cloned or downloaded)\UI-lab-capture\Additional docs
+```
 
 3. Create the Anaconda Environment:
-  - **conda env create -f LabCaptureEnvironment.yml -n environmentName**
-    - _Replace environmentName with the name you want for the environment_
+```
+# Replace environmentName with the name you want for the environment
+
+conda env create -f LabCaptureEnvironment.yml -n environmentName
+```
 
 4. Activate the environment:
-  - **conda activate environmentName**
-    - _Replace environmentName with the name from the last step_
+```
+# Replace environmentName with the name from the last step
+
+conda activate environmentName
+```
 
 #### Install the Labjack API-
 
 1. Change directories:
-  - **cd (current directory)\LabJackPython-2.0.0\LabJackPython-2.0.0**
+```
+cd (current directory)\LabJackPython-2.0.0\LabJackPython-2.0.0
+```
   
 2. Run the setup script
-  - **python setup.py install**
+```
+python setup.py install
+```
   
 3. Return to additional docs:
-  - **cd ..\..**
+```
+cd ..\..
+```
 
 #### Install the Spinnaker(PySpin) API-
 
 1. Change directories:
-  - **cd (current directory)\Latest Python Spinnaker\Latest Python Spinnaker\spinnaker_python-1.23.0.27-cpxx-cpxxm-win_amd64**
-    - _For my env, version cp37-cp37m was used_
+```
+# For my env, version cp37-cp37m was used
+
+cd (current directory)\Latest Python Spinnaker\Latest Python Spinnaker\spinnaker_python-1.23.0.27-cpxx-cpxxm-win_amd64
+```
   
 2. Install PySpin to your associated python version:
-  - **python -m pip install spinnaker_python-1.23.0.27-cpxx-cpxxm-win_amd64.whl**
+```
+python -m pip install spinnaker_python-1.23.0.27-cpxx-cpxxm-win_amd64.whl
+```
 
 3. Return to main directory UI-lab-capture:
-  - **cd ..\..\..\..**
+```
+cd ..\..\..\..
+```
 
 ## Running the tests
 
