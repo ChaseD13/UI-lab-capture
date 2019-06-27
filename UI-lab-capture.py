@@ -768,7 +768,7 @@ class UILabCapture():
         self.canvas.draw()
     
 
-    # Handles an interrupt made during an experiment
+    # Handles an interrupt made during an experiment  
     def on_closing(self):
         if self.running_experiment:
             self.running_experiment = False
@@ -796,6 +796,7 @@ class UILabCapture():
             try:
                 # Grab frames from camera's buffer
                 buffer_image = cam.GetNextImage()
+
                 # Converts the grabbed image from ram into an Numpy array
                 bimg = buffer_image.GetNDArray()
                 # Transforms the numpy array into a PIL image
@@ -810,7 +811,6 @@ class UILabCapture():
                     self.img_p.configure(image= tkimage)
                 else:
                     self.img_s.configure(image= tkimage)
-
                 # Executed when the user hits the start button
                 if self.running_experiment:
                     # Executed the first time the function is called
@@ -818,6 +818,7 @@ class UILabCapture():
                         self.prev_frame_id_p = int(buffer_image.GetFrameID() - 1)
                         self.starting_frame_p = int(buffer_image.GetFrameID() - 1)
                         self.start_of_experiment_p = False
+
                     elif self.start_of_experiment_s:
                         self.prev_frame_id_s = int(buffer_image.GetFrameID() - 1)
                         self.starting_frame_s = int(buffer_image.GetFrameID() - 1)
