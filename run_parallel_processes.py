@@ -6,7 +6,7 @@ processes = ('UI-lab-capture.py')##, 'process2.py', 'process3.py')
                                                   
                                                                                 
 def run_process(process):                                                             
-    os.system('conda python {}'.format(process))                                       
+    os.system('conda run {}'.format(process))                                       
                                                                                 
                                                                                 
 pool = Pool(processes=1)                                                        
