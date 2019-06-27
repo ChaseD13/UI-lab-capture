@@ -608,15 +608,6 @@ class UILabCapture():
         except Exception as ex:
             print(ex)
 
-        # self.var0.set("0") # Resets voltage being read from the labjack at FIO0
-        # self.var1.set("0") # Resets voltage being read from the labjack at FIO1
-        # self.var2.set("0") # Resets voltage being read from the labjack at FIO2
-        # self.var3.set("0") # Resets voltage being read from the labjack at FIO3
-        # self.var4.set("0") # Resets voltage being read from the labjack at FIO4
-        # self.var5.set("0") # Resets voltage being read from the labjack at FIO5
-        # self.var6.set("0") # Resets voltage being read from the labjack at FIO6
-        # self.var7.set("0") # Resets voltage being read from the labjack at FIO7
-
         # Removes the subplot from the canvas, creates a clean subplot for looks
         self.ax1.clear()
         # Set fixed axis values
@@ -796,7 +787,7 @@ class UILabCapture():
             try:
                 # Grab frames from camera's buffer
                 buffer_image = cam.GetNextImage()
-
+                
                 # Converts the grabbed image from ram into an Numpy array
                 bimg = buffer_image.GetNDArray()
                 # Transforms the numpy array into a PIL image
