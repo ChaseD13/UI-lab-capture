@@ -297,17 +297,19 @@ class UILabCapture():
     # Update voltage is used to constantly monitor the AIN0 port to see what voltage the port is reciving
     # It is adjusted by the scan_scale variable to scan faster or slower
     def update_voltage(self):
-        try:
-            self.var0.set(round(self.d.getAIN(0), 3)) # Get and set voltage for port 0
-            self.var1.set(round(self.d.getAIN(1), 3)) # Get and set voltage for port 1
-            self.var2.set(round(self.d.getAIN(2), 3)) # Get and set voltage for port 2
-            self.var3.set(round(self.d.getAIN(3), 3)) # Get and set voltage for port 3
-            self.var4.set(round(self.d.getAIN(4), 3)) # Get and set voltage for port 4
-            self.var5.set(round(self.d.getAIN(5), 3)) # Get and set voltage for port 5
-            self.var6.set(round(self.d.getAIN(6), 3)) # Get and set voltage for port 6
-            self.var7.set(round(self.d.getAIN(7), 3)) # Get and set voltage for port 7
-        except Exception as ex: 
-            print(ex)
+        while self.running_experiment:
+            try:
+                self.var0.set(round(self.d.getAIN(0), 3)) # Get and set voltage for port 0
+                self.var1.set(round(self.d.getAIN(1), 3)) # Get and set voltage for port 1
+                self.var2.set(round(self.d.getAIN(2), 3)) # Get and set voltage for port 2
+                self.var3.set(round(self.d.getAIN(3), 3)) # Get and set voltage for port 3
+                self.var4.set(round(self.d.getAIN(4), 3)) # Get and set voltage for port 4
+                self.var5.set(round(self.d.getAIN(5), 3)) # Get and set voltage for port 5
+                self.var6.set(round(self.d.getAIN(6), 3)) # Get and set voltage for port 6
+                self.var7.set(round(self.d.getAIN(7), 3)) # Get and set voltage for port 7
+            except Exception as ex: 
+                print(ex)
+            time.sleep(1/self.scan_hz.get())
 
 
     # Function to wrtie the data out to a directory
@@ -585,6 +587,8 @@ class UILabCapture():
         #self.thread1_s.start()
         self.thread2_s.start()
 
+        self.thread_voltage = threading.Thread(target= self.update_voltage, daemon= True)
+        self.thread_voltage.start()
         # Start Timer
         self.timer_thread = threading.Thread(target= self.timer, args=(self.start_time, ), daemon= True)
         self.timer_thread.start()
@@ -662,7 +666,7 @@ class UILabCapture():
     # Holds the function calls that need to be updated based on hz
     def update_gui(self):
         # Updates the ainalog voltages being read in from the Labjack
-        self.update_voltage()
+        #self.update_voltage()
 
         # Updates the graph of the analog voltages
         self.animate_with_stream()
@@ -786,8 +790,7 @@ class UILabCapture():
         while self.running_preview or self.running_experiment:
             try:
                 # Grab frames from camera's buffer
-                buffer_image = cam.GetNextImage()
-                
+                buffer_image = cam.GetNextImage() 
                 # Converts the grabbed image from ram into an Numpy array
                 bimg = buffer_image.GetNDArray()
                 # Transforms the numpy array into a PIL image
