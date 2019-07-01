@@ -5,19 +5,23 @@ from tkinter import messagebox
 
 # Store passed arguments
 # NOTE: sys.argv[0] is the script name
-# Expected to recieve a camera object from the master script
-if isinstance(sys.argv[1], PySpin.Camera):
-    primary_camera = sys.argv[1] 
-else:
-    messagebox.showerror("Error", "Argument[1] passed to Primary_Camera_Control was not a PySpin.Camera object")
-    #TODO: EXIT EXPERIMENT
+try:
+    # Expected to recieve a camera object from the master script
+    if isinstance(sys.argv[1], PySpin.Camera):
+        primary_camera = sys.argv[1] 
+    else:
+        messagebox.showerror("Error", "Argument[1] passed to Primary_Camera_Control was not a PySpin.Camera object")
+        #TODO: EXIT EXPERIMENT
 
-# Expected to recieve a multiprocessing Queue from the master script
-if isinstance(sys.argv[2], multiprocessing.Queue):
-    shared_queue = sys.argv[2] 
-else:
-    messagebox.showerror("Error", "Argument[2] passed to Primary_Camera_Control was not a multiprocessing.Queue object")
-    #TODO: EXIT EXPERIMENT
+    # Expected to recieve a multiprocessing Queue from the master script
+    if isinstance(sys.argv[2], multiprocessing.Queue):
+        shared_queue = sys.argv[2] 
+    else:
+        messagebox.showerror("Error", "Argument[2] passed to Primary_Camera_Control was not a multiprocessing.Queue object")
+        #TODO: EXIT EXPERIMENT
+except Exception as ex: 
+    messagebox.showerror("Error", "%s" % ex)
+        #TODO: EXIT EXPERIMENT
     
 # Init Camera
 primary_camera.Init()

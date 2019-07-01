@@ -6,11 +6,16 @@ from tkinter import messagebox
 # Store passed arguments
 # NOTE: sys.argv[0] is the script name
 # Expected to recieve a camera object from the master script
-if isinstance(sys.argv[1], u3.U3):
-    labjack = sys.argv[1] 
-else:
-    messagebox.showerror("Error", "Argument[1] passed to Labjack_Control was not a u3.U3 object")
-    # Close/End processes
+try:
+    if isinstance(sys.argv[1], u3.U3):
+        labjack = sys.argv[1] 
+    else:
+        messagebox.showerror("Error", "Argument[1] passed to Labjack_Control was not a u3.U3 object")
+        # Close/End processes
+except Exception as ex: 
+    messagebox.showerror("Error", "%s" % ex)
+        #TODO: EXIT EXPERIMENT
+
 
 # Init Labjack
 labjack.getCalibrationData() # Calibration data will be used by functions that convert binary data to voltage/temperature and vice versa

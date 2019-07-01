@@ -7,6 +7,7 @@ import os
 import queue as Queue
 import sys
 import tkinter as tk 
+import u3
 
 
 # Window to take in user input and apply settings for the experiment
@@ -247,16 +248,24 @@ class MainWindow():
 
     # Given a script name, this spawns a sepearte process running the given script name
     def run_process(self, process):                                                             
-        os.system('conda run {}'.format(process))  
+        os.system('python {}'.format(process))  
 
 
     # Executed when the user clicks the start button
     def begin_experiment(self):
+        # Running experiment
         self.experiment_in_progress = True
+
+        # change the current working directory to specified path 
+        os.chdir('C://Users/Behavior Scoring/Desktop/UI-lab-capture') 
+
+        # Initialize variables to pass to the processes
+        self.shared_queue = multiprocessing.Queue()
+        self.d = u3.U3() # Connect to labjack 
 
         self.processes = ('Labjack_Control.py', 'Secondary_Camera_Control.py', 'Primary_Camera_Control.py')
         pool = multiprocessing.Pool(processes=3)                                                        
-        pool.map(self.run_process, self.processes)          
+        pool.map_async(self.run_process, self.processes)          
 
 
     # Executed when the user clicks the stop button
@@ -273,7 +282,6 @@ class MainWindow():
         else:
             self.root.destroy()
                                       
-
 
 # MAIN - Creates a startup window and the main GUI. Passes variables from startup window to the main window
 # TODO: Better way to loop experiment calls; 
