@@ -2,7 +2,7 @@ import os
 from multiprocessing import Pool, Queue                                               
                                                                                 
                                                                                 
-processes = ('UI-lab-capture.py', 'acquire_images.py', 'run_parallel_processes.py')                                    
+processes = ('UI-lab-capture.py', 'Secondary_Camera_Control.py', 'Primary_Camera_Control.py')                                    
                                                   
                                                                                 
 def run_process(process):                                                             
