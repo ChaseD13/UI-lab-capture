@@ -236,7 +236,7 @@ class UILabCapture():
 
         tk.Label(self.labjack_values, text= 'BlackFly FPS:').pack()
         self.frame_rate_input = tk.IntVar()
-        self.frame_rate_input.set("10")
+        self.frame_rate_input.set("60")
         self.scan_space = tk.Entry(self.labjack_values, textvariable = self.frame_rate_input)
         self.scan_space.pack(padx = 10, pady = 10)
 
@@ -265,12 +265,12 @@ class UILabCapture():
         self.canvas.draw()
 
         # Call to initialize cameras and avi video
-        self.operate_cameras()
+        #self.operate_cameras()
         self.running_preview = True
-        self.thread_preview_p = threading.Thread(target= self.preview_and_acquire_images, args=(self.image_queue_primary, self.cam_primary, 'p', ), daemon= True)
-        self.thread_preview_s = threading.Thread(target= self.preview_and_acquire_images, args=(self.image_queue_secondary, self.cam_secondary, 's', ), daemon= True)
-        self.thread_preview_p.start()
-        self.thread_preview_s.start()
+        #self.thread_preview_p = threading.Thread(target= self.preview_and_acquire_images, args=(self.image_queue_primary, self.cam_primary, 'p', ), daemon= True)
+        #self.thread_preview_s = threading.Thread(target= self.preview_and_acquire_images, args=(self.image_queue_secondary, self.cam_secondary, 's', ), daemon= True)
+        #self.thread_preview_p.start()
+        #self.thread_preview_s.start()
 
 
         #Handle interrupt 
@@ -297,19 +297,17 @@ class UILabCapture():
     # Update voltage is used to constantly monitor the AIN0 port to see what voltage the port is reciving
     # It is adjusted by the scan_scale variable to scan faster or slower
     def update_voltage(self):
-        while self.running_experiment:
-            try:
-                self.var0.set(round(self.d.getAIN(0), 3)) # Get and set voltage for port 0
-                self.var1.set(round(self.d.getAIN(1), 3)) # Get and set voltage for port 1
-                self.var2.set(round(self.d.getAIN(2), 3)) # Get and set voltage for port 2
-                self.var3.set(round(self.d.getAIN(3), 3)) # Get and set voltage for port 3
-                self.var4.set(round(self.d.getAIN(4), 3)) # Get and set voltage for port 4
-                self.var5.set(round(self.d.getAIN(5), 3)) # Get and set voltage for port 5
-                self.var6.set(round(self.d.getAIN(6), 3)) # Get and set voltage for port 6
-                self.var7.set(round(self.d.getAIN(7), 3)) # Get and set voltage for port 7
-            except Exception as ex: 
-                print(ex)
-            time.sleep(self.tbs)
+        try:
+            self.var0.set(round(self.d.getAIN(0), 3)) # Get and set voltage for port 0
+            self.var1.set(round(self.d.getAIN(1), 3)) # Get and set voltage for port 1
+            self.var2.set(round(self.d.getAIN(2), 3)) # Get and set voltage for port 2
+            self.var3.set(round(self.d.getAIN(3), 3)) # Get and set voltage for port 3
+            self.var4.set(round(self.d.getAIN(4), 3)) # Get and set voltage for port 4
+            self.var5.set(round(self.d.getAIN(5), 3)) # Get and set voltage for port 5
+            self.var6.set(round(self.d.getAIN(6), 3)) # Get and set voltage for port 6
+            self.var7.set(round(self.d.getAIN(7), 3)) # Get and set voltage for port 7
+        except Exception as ex: 
+            print(ex)
 
 
     # Function to wrtie the data out to a directory
@@ -461,18 +459,6 @@ class UILabCapture():
                 # Store frames into shared queue for camera
                 q.put(buffer_image)
 
-                # Checks if the frames from the camera are sequential; Increments if the frames are not sequential
-                if letter == 'p':
-                    if int(buffer_image.GetFrameID()) != (self.prev_frame_id_p + 1):
-                        self.missed_frames_p += int(buffer_image.GetFrameID()) - self.prev_frame_id_p
-                    self.prev_frame_id_p = int(buffer_image.GetFrameID())
-                    self.frame_id_queue_p.put(int(buffer_image.GetFrameID()))
-                else:
-                    if int(buffer_image.GetFrameID()) != (self.prev_frame_id_s + 1):
-                        self.missed_frames_s += int(buffer_image.GetFrameID()) - self.prev_frame_id_s
-                    self.prev_frame_id_s = int(buffer_image.GetFrameID())
-                    self.frame_id_queue_s.put(int(buffer_image.GetFrameID()))
-
                 # Release images from the buffers 
                 buffer_image.Release()
 
@@ -520,10 +506,6 @@ class UILabCapture():
 
     # A function to handle all updating of values and functions
     def start_gui(self):
-        # Start Timer
-        self.timer_thread = threading.Thread(target= self.timer, args=(self.timer, ), daemon= True)
-        self.timer_thread.start()
-
         # The experiment has started running
         self.running_experiment = True
         self.running_preview = False
@@ -537,7 +519,7 @@ class UILabCapture():
         self.curtime = 0.000000
 
         # Updates with the timer function. Keeps track of total seconds elapsed during experiment. Negative to offset the second it takes to aquire the first second of data
-        self.total_seconds = -1
+        self.total_seconds = 0
 
         # Set the standard datetime format
         self.datetimeFormat = '%Y-%m-%d %I:%M:%S.%f'
@@ -576,6 +558,8 @@ class UILabCapture():
         # Call to initalize the Labjack
         self.init_labjack() 
 
+        self.operate_cameras()
+
         # Create the file for writing data out to disk
 
         # If dne this will create the file at the specified location;
@@ -602,24 +586,28 @@ class UILabCapture():
         self.f.write("Time\t\t   v0\t\t   v1\t\t   v2\t\t   v3\t\t   v4\t\t   v5\t\t   v6\t\t   v7\t\t   y0\t\t   y1\t\t   y2\t\t   y3\t\t   y4\t\t   y5\t\t   y6\t\t   y7 \n")
         
         #Call to update function to begin the animation of the GUI
-        #self.update_gui()
-        self.root.after(self.hz_to_mil, self.animate_with_stream)
-
+        self.update_gui()
+        #self.root.after(self.hz_to_mil, self.animate_with_stream)
+                
         # Start processes to begin the capturing from the Blackfly camera
-        #self.thread1_p = threading.Thread(target= self.acquire_frames, args=(self.image_queue_primary,  self.cam_primary, 'p', ), daemon= True)
+        self.thread1_p = threading.Thread(target= self.acquire_frames, args=(self.image_queue_primary,  self.cam_primary, 'p', ), daemon= True)
         self.thread2_p = threading.Thread(target= self.append_to_video, args=(self.image_queue_primary, self.avi_video_primary, 'p', ), daemon= True)
-        #self.thread1_s = threading.Thread(target= self.acquire_frames, args=(self.image_queue_secondary, self.cam_secondary, 's', ), daemon= True)
+        self.thread1_s = threading.Thread(target= self.acquire_frames, args=(self.image_queue_secondary, self.cam_secondary, 's', ), daemon= True)
         self.thread2_s = threading.Thread(target= self.append_to_video, args=(self.image_queue_secondary, self.avi_video_secondary, 's', ), daemon= True)
-        #self.thread1_p.start()
+        self.thread1_p.start()
         self.thread2_p.start()
-        #self.thread1_s.start()
+        self.thread1_s.start()
         self.thread2_s.start()
 
-        self.thread_voltage = threading.Thread(target= self.update_voltage, daemon= True)
-        self.thread_voltage.start()
+        # Start Timer
+        self.timer_thread = threading.Thread(target= self.timer, daemon= True)
+        self.timer_thread.start()
 
-        self.thread_animate = threading.Thread(target= self.animate_with_stream, daemon= True)
-        self.thread_animate.start()
+        #self.thread_voltage = threading.Thread(target= self.update_voltage, daemon= True)
+        #self.thread_voltage.start()
+
+        #self.thread_animate = threading.Thread(target= self.animate_with_stream, daemon= True)
+        #self.thread_animate.start()
 
 
     # A function to stop the current experiment and revert the GUI back to a clean state
@@ -694,7 +682,7 @@ class UILabCapture():
     # Holds the function calls that need to be updated based on hz
     def update_gui(self):
         # Updates the ainalog voltages being read in from the Labjack
-        #self.update_voltage()
+        self.update_voltage()
 
         # Updates the graph of the analog voltages
         self.animate_with_stream()
@@ -803,7 +791,7 @@ class UILabCapture():
             
 
     # Handles incremeting of the timer
-    def timer(self, start_time):
+    def timer(self):
         while self.running_experiment:
             self.total_seconds += 1
             m, s = divmod(self.total_seconds, 60)
