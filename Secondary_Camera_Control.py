@@ -10,14 +10,14 @@ if isinstance(sys.argv[1], PySpin.Camera):
     secondary_camera = sys.argv[1] 
 else:
     messagebox.showerror("Error", "Argument[1] passed to Secondary_Camera_Control was not a PySpin.Camera object")
-    # Close/End processes
+    #TODO: EXIT EXPERIMENT
 
 # Expected to recieve a multiprocessing Queue from the master script
 if isinstance(sys.argv[2], multiprocessing.Queue):
     shared_queue = sys.argv[2] 
 else:
     messagebox.showerror("Error", "Argument[2] passed to Secondary_Camera_Control was not a multiprocessing.Queue object")
-    # Close/End processes
+    #TODO: EXIT EXPERIMENT
     
 # Init Camera
 secondary_camera.Init()
@@ -60,12 +60,12 @@ option_secondary.quality = 75
 #Open the recording file for both camera
 avi_video_secondary.Open(filename_secondary, option_secondary)
 
+while True:
+    # Acquire an image(s)
+    image = secondary_camera.GetNextImage()
 
-# Acquire an image(s)
-image = secondary_camera.GetNextImage()
+    # Append to video
+    avi_video_secondary.Append(image)
 
-# Append to video
-avi_video_secondary.Append(image)
-
-# Pipe/Send image(s) back to the master process
-shared_queue.put(image)
+    # Pipe/Send image(s) back to the master process
+    shared_queue.put(image)
