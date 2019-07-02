@@ -4,6 +4,12 @@ import PySpin
 import multiprocessing
 from tkinter import messagebox
 
+def wr():
+    file = open('testfile_S.txt','w') 
+    file.write('Hello World from SCC')
+    file.close()
+    return 0
+
 # Store passed arguments
 # NOTE: sys.argv[0] is the script name
 try:

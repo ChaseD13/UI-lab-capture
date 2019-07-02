@@ -9,6 +9,9 @@ import queue as Queue
 import sys
 import tkinter as tk 
 import u3
+import Labjack_Control
+import Primary_Camera_Control
+import Secondary_Camera_Control
 
 
 # Window to take in user input and apply settings for the experiment
@@ -275,21 +278,32 @@ class MainWindow():
             self.cam_primary = self.cam_list.GetByIndex(1)
             self.cam_secondary = self.cam_list.GetByIndex(0)
 
-        self.processes = ['Labjack_Control.py', 'Secondary_Camera_Control.py', 'Primary_Camera_Control.py']
-        self.pool = multiprocessing.Pool(processes= 3)                                                        
-        self.pool.map(self.run_process, self.processes) 
+        # self.processes = ['Labjack_Control.py', 'Secondary_Camera_Control.py', 'Primary_Camera_Control.py']
+        # self.pool = multiprocessing.Pool(processes= 3)                                                        
+        # self.pool.map(self.run_process, self.processes) 
+
+        self.processes = [None] * 3     
+        self.processes[0] = multiprocessing.Process(target=Labjack_Control.wr)
+        self.processes[0].start()
+        self.processes[1] = multiprocessing.Process(target=Secondary_Camera_Control.wr)
+        self.processes[1].start()
+        self.processes[2] = multiprocessing.Process(target=Primary_Camera_Control.wr)
+        self.processes[3].start()
 
 
     # Given a script name, this spawns a sepearte process running the given script name
-    def run_process(self, process):                                                             
+    def run_process(self, process):   
+        print("Spawned %s" % process)                                                          
         os.system('python {}'.format(process))  
 
 
     # Executed when the user clicks the stop button
     def end_experiment(self): 
         self.experiment_in_progress = False
-        self.pool.terminate()
-        self.pool.join()
+        #self.pool.terminate()
+        #self.pool.join()
+        for i in range(3):
+            self.processes[i].join()
         print('Done!')  
 
 
