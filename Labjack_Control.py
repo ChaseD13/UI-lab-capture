@@ -8,19 +8,22 @@ def run():
     file = open('testfile_L_run.txt','w') 
     file.write('Hello World from LC; In run!')
     file.close()
+    
 
-    # Store passed arguments
-    # NOTE: sys.argv[0] is the script name
-    # Expected to recieve a camera object from the master script
-    try:
-        if isinstance(sys.argv[1], u3.U3):
-            labjack = sys.argv[1] 
-        else:
-            messagebox.showerror("Error", "Argument[1] passed to Labjack_Control was not a u3.U3 object")
-            # Close/End processes
-    except Exception as ex: 
-        messagebox.showerror("Error", "%s" % ex)
-            #TODO: EXIT EXPERIMENT
+    # # Store passed arguments
+    # # NOTE: sys.argv[0] is the script name
+    # # Expected to recieve a camera object from the master script
+    # try:
+    #     if isinstance(lj, u3.U3):
+    #         labjack = lj 
+    #     else:
+    #         messagebox.showerror("Error", "Argument[1] passed to Labjack_Control was not a u3.U3 object")
+    #         # Close/End processes
+    # except Exception as ex: 
+    #     messagebox.showerror("Error", "%s" % ex)
+    #         #TODO: EXIT EXPERIMENT
+
+    labjack = u3.U3()
 
     # Init Labjack
     # TODO: ScanFreq set by user

@@ -5,38 +5,29 @@ import multiprocessing
 from tkinter import messagebox
 
 
-def run(camera, queue):
+def run(queue, serial_number):
     file = open('testfile_S_run.txt','w') 
-    file.write('Hello World from SCC; In run!')
+    file.write('Hello World from SCC; In run! %d' % serial_number)
     file.close()
 
-    # Store passed arguments
-    # NOTE: sys.argv[0] is the script name
-    try:
-        # Expected to recieve a camera object from the master script
-        if isinstance(camera, PySpin.Camera):
-            secondary_camera = camera
-        else:
-            messagebox.showerror("Error", "Argument[1] passed to Secondary_Camera_Control was not a PySpin.Camera object")
-            #TODO: EXIT EXPERIMENT
+    # Get system
+    system = PySpin.System.GetInstance()
+    # Get camera list
+    cam_list = system.GetCameras()
+    # Figure out which is primary and secondary
+    if cam_list.GetByIndex(0).TLDevice.DeviceSerialNumber() == str(serial_number):
+        secondary_camera = cam_list.GetByIndex(0)
+    else:
+        secondary_camera = cam_list.GetByIndex(1)
 
-        # Expected to recieve a multiprocessing Queue from the master script
-        if isinstance(queue, multiprocessing.Queue):
-            shared_queue = queue
-        else:
-            messagebox.showerror("Error", "Argument[2] passed to Secondary_Camera_Control was not a multiprocessing.Queue object")
-            #TODO: EXIT EXPERIMENT
-    except Exception as ex: 
-        messagebox.showerror("Error", "%s" % ex)
-            #TODO: EXIT EXPERIMENT
     # Init Camera
     secondary_camera.Init()
 
     # Retrieve GenICam nodemap
-    primary_nodemap = secondary_camera.GetNodeMap()
+    secondary_nodemap = secondary_camera.GetNodeMap()
 
     # Retrieve nodemap TLDevice
-    primary_nodemaptldevice = secondary_camera.GetTLDeviceNodeMap()
+    secondary_nodemaptldevice = secondary_camera.GetTLDeviceNodeMap()
 
     # Setup the hardware triggers
     # NOTE: Turned off for now because gpio pins not connected
@@ -78,4 +69,4 @@ def run(camera, queue):
         avi_video_secondary.Append(image)
 
         # Pipe/Send image(s) back to the master process
-        shared_queue.put(image)
+        queue.put(image)

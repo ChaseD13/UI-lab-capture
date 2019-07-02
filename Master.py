@@ -262,23 +262,11 @@ class MainWindow():
         # Initialize variables to pass to the processes
         self.man = multiprocessing.Manager()
         self.shared_queue = self.man.Queue()
-        
-        # Get system
-        self.system = PySpin.System.GetInstance()
-        # Get camera list
-        self.cam_list = self.system.GetCameras()
-        # Figure out which is primary and secondary
-        if self.cam_list.GetByIndex(0).TLDevice.DeviceSerialNumber() == str(self.primary_camera_serial_number):
-            self.cam_primary = self.cam_list.GetByIndex(0)
-            self.cam_secondary = self.cam_list.GetByIndex(1)
-        else:
-            self.cam_primary = self.cam_list.GetByIndex(1)
-            self.cam_secondary = self.cam_list.GetByIndex(0)
 
         self.processes = [None] * 3  
         self.processes[0] = multiprocessing.Process(target=Labjack_Control.run)
-        self.processes[1] = multiprocessing.Process(target=Secondary_Camera_Control.run)
-        self.processes[2] = multiprocessing.Process(target=Primary_Camera_Control.run)
+        self.processes[1] = multiprocessing.Process(target=Secondary_Camera_Control.run, args= (self.shared_queue, 19061546, ))
+        self.processes[2] = multiprocessing.Process(target=Primary_Camera_Control.run, args= (self.shared_queue, 19061331, ))
         for i in range(3):
             self.processes[i].start()
 

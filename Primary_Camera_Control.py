@@ -5,30 +5,21 @@ import multiprocessing
 from tkinter import messagebox
 
 
-def run(camera, queue):
+
+def run(queue, serial_number):
     file = open('testfile_P_run.txt','w') 
-    file.write('Hello World from PCC; In run!')
+    file.write('Hello World from PCC; In run! %d' % serial_number)
     file.close()
 
-    # Store passed arguments
-    # NOTE: sys.argv[0] is the script name
-    try:
-        # Expected to recieve a camera object from the master script
-        if isinstance(camera, PySpin.Camera):
-            primary_camera = camera
-        else:
-            messagebox.showerror("Error", "Argument[1] passed to Primary_Camera_Control was not a PySpin.Camera object")
-            #TODO: EXIT EXPERIMENT
-
-        # Expected to recieve a multiprocessing Queue from the master script
-        if isinstance(queue, multiprocessing.Queue):
-            shared_queue = queue 
-        else:
-            messagebox.showerror("Error", "Argument[2] passed to Primary_Camera_Control was not a multiprocessing.Queue object")
-            #TODO: EXIT EXPERIMENT
-    except Exception as ex: 
-        messagebox.showerror("Error", "%s" % ex)
-            #TODO: EXIT EXPERIMENT
+    # Get system
+    system = PySpin.System.GetInstance()
+    # Get camera list
+    cam_list = system.GetCameras()
+    # Figure out which is primary and secondary
+    if cam_list.GetByIndex(0).TLDevice.DeviceSerialNumber() == str(serial_number):
+        primary_camera = cam_list.GetByIndex(0)
+    else:
+        primary_camera = cam_list.GetByIndex(1)
         
     # Init Camera
     primary_camera.Init()
@@ -79,4 +70,4 @@ def run(camera, queue):
         avi_video_primary.Append(image)
 
         # Pipe/Send image(s) back to the master process
-        shared_queue.put(image)
+        queue.put(image)
