@@ -4,6 +4,7 @@ import multiprocessing
 import matplotlib.figure as figure
 import numpy as np
 import os
+import PySpin
 import queue as Queue
 import sys
 import tkinter as tk 
@@ -246,12 +247,8 @@ class MainWindow():
         self.root.mainloop()
 
 
-    # Given a script name, this spawns a sepearte process running the given script name
-    def run_process(self, process):                                                             
-        os.system('python {}'.format(process))  
-
-
     # Executed when the user clicks the start button
+    # TODO: run_process works by itself. Trouble comes from the multiprocess part of the code
     def begin_experiment(self):
         # Running experiment
         self.experiment_in_progress = True
@@ -260,17 +257,39 @@ class MainWindow():
         os.chdir('C://Users/Behavior Scoring/Desktop/UI-lab-capture') 
 
         # Initialize variables to pass to the processes
-        self.shared_queue = multiprocessing.Queue()
-        self.d = u3.U3() # Connect to labjack 
+        self.man = multiprocessing.Manager()
+        self.shared_queue = self.man.Queue()
 
-        self.processes = ('Labjack_Control.py', 'Secondary_Camera_Control.py', 'Primary_Camera_Control.py')
-        pool = multiprocessing.Pool(processes=3)                                                        
-        pool.map_async(self.run_process, self.processes)          
+        # Connect to labjack 
+        self.d = u3.U3() 
+        
+        # Get system
+        self.system = PySpin.System.GetInstance()
+        # Get camera list
+        self.cam_list = self.system.GetCameras()
+        # Figure out which is primary and secondary
+        if self.cam_list.GetByIndex(0).TLDevice.DeviceSerialNumber() == str(self.primary_camera_serial_number):
+            self.cam_primary = self.cam_list.GetByIndex(0)
+            self.cam_secondary = self.cam_list.GetByIndex(1)
+        else:
+            self.cam_primary = self.cam_list.GetByIndex(1)
+            self.cam_secondary = self.cam_list.GetByIndex(0)
+
+        self.processes = ['Labjack_Control.py', 'Secondary_Camera_Control.py', 'Primary_Camera_Control.py']
+        self.pool = multiprocessing.Pool(processes= 3)                                                        
+        self.pool.map(self.run_process, self.processes) 
+
+
+    # Given a script name, this spawns a sepearte process running the given script name
+    def run_process(self, process):                                                             
+        os.system('python {}'.format(process))  
 
 
     # Executed when the user clicks the stop button
     def end_experiment(self): 
         self.experiment_in_progress = False
+        self.pool.terminate()
+        self.pool.join()
         print('Done!')  
 
 

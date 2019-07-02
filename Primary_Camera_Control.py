@@ -1,4 +1,5 @@
 import sys
+import numpy as np
 import PySpin
 import multiprocessing
 from tkinter import messagebox

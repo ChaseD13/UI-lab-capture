@@ -18,10 +18,11 @@ except Exception as ex:
 
 
 # Init Labjack
+# TODO: ScanFreq set by user
 labjack.getCalibrationData() # Calibration data will be used by functions that convert binary data to voltage/temperature and vice versa
 labjack.configIO(FIOAnalog= 255) # Set the FIO to read in analog; 255 sets all eight FIO ports to analog
 # labjack.streamConfig(NumChannels= self.num_channels.get(), PChannels=range(self.num_channels.get()), NChannels=[31]*self.num_channels.get(), Resolution=1, ScanFrequency=self.scan_hz.get())
-labjack.streamConfig(NumChannels= 8, PChannels=range(8), NChannels=[31]*8, Resolution=1, ScanFrequency=self.scan_hz.get())
+labjack.streamConfig(NumChannels= 8, PChannels=range(8), NChannels=[31]*8, Resolution=1, ScanFrequency=200)
 
 # Stream the data
 labjack.streamStart()
