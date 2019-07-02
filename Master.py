@@ -262,9 +262,6 @@ class MainWindow():
         # Initialize variables to pass to the processes
         self.man = multiprocessing.Manager()
         self.shared_queue = self.man.Queue()
-
-        # Connect to labjack 
-        self.d = u3.U3() 
         
         # Get system
         self.system = PySpin.System.GetInstance()
@@ -278,17 +275,12 @@ class MainWindow():
             self.cam_primary = self.cam_list.GetByIndex(1)
             self.cam_secondary = self.cam_list.GetByIndex(0)
 
-        # self.processes = ['Labjack_Control.py', 'Secondary_Camera_Control.py', 'Primary_Camera_Control.py']
-        # self.pool = multiprocessing.Pool(processes= 3)                                                        
-        # self.pool.map(self.run_process, self.processes) 
-
-        self.processes = [None] * 3     
-        self.processes[0] = multiprocessing.Process(target=Labjack_Control.wr)
-        self.processes[0].start()
-        self.processes[1] = multiprocessing.Process(target=Secondary_Camera_Control.wr)
-        self.processes[1].start()
-        self.processes[2] = multiprocessing.Process(target=Primary_Camera_Control.wr)
-        self.processes[3].start()
+        self.processes = [None] * 3  
+        self.processes[0] = multiprocessing.Process(target=Labjack_Control.run)
+        self.processes[1] = multiprocessing.Process(target=Secondary_Camera_Control.run)
+        self.processes[2] = multiprocessing.Process(target=Primary_Camera_Control.run)
+        for i in range(3):
+            self.processes[i].start()
 
 
     # Given a script name, this spawns a sepearte process running the given script name
