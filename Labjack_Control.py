@@ -3,12 +3,11 @@ import LabJackPython
 import sys
 from tkinter import messagebox, Tk
 
-
-def run():
+    
+def run(running_experiment_queue):
     file = open('testfile_L_run.txt','w') 
     file.write('Hello World from LC; In run!')
     file.close()
-    
 
     # # Store passed arguments
     # # NOTE: sys.argv[0] is the script name
@@ -33,16 +32,24 @@ def run():
     labjack.streamConfig(NumChannels= 8, PChannels=range(8), NChannels=[31]*8, Resolution=1, ScanFrequency=200)
 
     # Stream the data
-    labjack.streamStart()
+    try:
+        labjack.streamStart()
+    except:
+        labjack.streamStop()
+        labjack.streamStart()
 
     for r in labjack.streamData():
         if r is not None:
             #new_data_ain0.extend(r['AIN0'])
-            break
+            pass
         else:
             pass
-        break
+
         # Write the data 
 
         #Pipe/Send data back to master
+
+        if not running_experiment_queue.empty():
+            labjack.streamStop()
+
 

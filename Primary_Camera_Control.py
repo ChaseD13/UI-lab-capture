@@ -5,11 +5,11 @@ import multiprocessing
 from tkinter import messagebox
 
 
-
-def run(queue, serial_number):
+def run(queue, serial_number, running_experiment_queue):
     file = open('testfile_P_run.txt','w') 
     file.write('Hello World from PCC; In run! %d' % serial_number)
     file.close()
+
 
     # Get system
     system = PySpin.System.GetInstance()
@@ -54,7 +54,7 @@ def run(queue, serial_number):
 
     #Set filename and options for both videos
     #TODO: Make the video path save to the working directory of the experiment
-    filename_primary = '/SaveToAvi-MJPG-primary'
+    filename_primary = 'SaveToAvi-MJPG-primary'
     option_primary = PySpin.MJPGOption()
     option_primary.frameRate = 60
     option_primary.quality = 75
@@ -62,7 +62,7 @@ def run(queue, serial_number):
     #Open the recording file for both camera
     avi_video_primary.Open(filename_primary, option_primary)
 
-    while True:
+    while running_experiment_queue.empty():
         # Acquire an image(s)
         image = primary_camera.GetNextImage()
 
@@ -70,4 +70,10 @@ def run(queue, serial_number):
         avi_video_primary.Append(image)
 
         # Pipe/Send image(s) back to the master process
-        queue.put(image)
+        # Converts the grabbed image from ram into an Numpy array
+        bimg = image.GetNDArray()
+        queue.put(bimg)
+
+    avi_video_primary.Close()
+
+    

@@ -260,19 +260,23 @@ class MainWindow():
         os.chdir('C://Users/Behavior Scoring/Desktop/UI-lab-capture') 
 
         # Initialize variables to pass to the processes
-        self.man = multiprocessing.Manager()
-        self.shared_queue = self.man.Queue()
+        # self.man = multiprocessing.Manager()
+        # self.shared_queue = self.man.Queue()
+        self.shared_queue_primary_camera = multiprocessing.Queue()
+        self.shared_queue_secondary_camera = multiprocessing.Queue()
+
+        self.shared_queue_running_experiment = multiprocessing.Queue()
 
         self.processes = [None] * 3  
-        self.processes[0] = multiprocessing.Process(target=Labjack_Control.run)
-        self.processes[1] = multiprocessing.Process(target=Secondary_Camera_Control.run, args= (self.shared_queue, 19061546, ))
-        self.processes[2] = multiprocessing.Process(target=Primary_Camera_Control.run, args= (self.shared_queue, 19061331, ))
+        self.processes[0] = multiprocessing.Process(target=Labjack_Control.run, args= (self.shared_queue_running_experiment, ))
+        self.processes[1] = multiprocessing.Process(target=Secondary_Camera_Control.run, args= (self.shared_queue_primary_camera, 19061546, self.shared_queue_running_experiment, ))
+        self.processes[2] = multiprocessing.Process(target=Primary_Camera_Control.run, args= (self.shared_queue_secondary_camera, 19061331, self.shared_queue_running_experiment, ))
         for i in range(3):
             self.processes[i].start()
 
 
     # Given a script name, this spawns a sepearte process running the given script name
-    def run_process(self, process):   
+    def run_process(self, process):
         print("Spawned %s" % process)                                                          
         os.system('python {}'.format(process))  
 
@@ -280,9 +284,13 @@ class MainWindow():
     # Executed when the user clicks the stop button
     def end_experiment(self): 
         self.experiment_in_progress = False
-        #self.pool.terminate()
-        #self.pool.join()
-        for i in range(3):
+
+        self.shared_queue_running_experiment.put('END OF EXPERIMENT')
+        
+        # for i in range(2,0,-1):
+        #     self.processes[i].terminate()
+        
+        for i in range(2,0,-1):
             self.processes[i].join()
         print('Done!')  
 
