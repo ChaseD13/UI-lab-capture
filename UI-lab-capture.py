@@ -717,7 +717,6 @@ class UILabCapture():
                 new_data_ain5.extend(r['AIN5'])
                 new_data_ain6.extend(r['AIN6'])
                 new_data_ain7.extend(r['AIN7'])
-
                 
             if len(new_data_ain0) >= self.scan_hz.get():
                 break

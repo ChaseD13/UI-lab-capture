@@ -1,4 +1,5 @@
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from PIL import Image, ImageTk
 import datetime
 import multiprocessing
 import matplotlib.figure as figure
@@ -12,6 +13,7 @@ import u3
 import Labjack_Control
 import Primary_Camera_Control
 import Secondary_Camera_Control
+import Timer_Control
 
 
 # Window to take in user input and apply settings for the experiment
@@ -128,7 +130,7 @@ class MainWindow():
             self.file_log.close()
         except OSError as ex: 
             tk.messagebox.showerror("Error", '%s' % ex)
-            #TODO: EXIT EXPERIMENT
+            self.on_close()
 
 
     # Builds the main GUI window 
@@ -251,8 +253,11 @@ class MainWindow():
 
 
     # Executed when the user clicks the start button
-    # TODO: run_process works by itself. Trouble comes from the multiprocess part of the code
     def begin_experiment(self):
+        # ~ VARIABLES ~
+        # Start time of the experiment
+        self.shared_start_time = datetime.datetime.now()
+
         # Running experiment
         self.experiment_in_progress = True
 
@@ -260,39 +265,54 @@ class MainWindow():
         os.chdir(self.working_directory) 
 
         # Initialize variables to pass to the processes
-        # self.man = multiprocessing.Manager()
-        # self.shared_queue = self.man.Queue()
         self.shared_queue_primary_camera = multiprocessing.Queue()
         self.shared_queue_secondary_camera = multiprocessing.Queue()
-
         self.shared_queue_running_experiment = multiprocessing.Queue()
+        self.shared_total_seconds = multiprocessing.Manager().Value('i', 0)
 
-        self.processes = [None] * 3  
-        self.processes[0] = multiprocessing.Process(target=Labjack_Control.run, args= (self.shared_queue_running_experiment, ))
+        # ~ PROCESSES ~
+        self.processes = [None] * 4  
+        self.processes[0] = multiprocessing.Process(target=Labjack_Control.run, args= (self.shared_queue_running_experiment, self.scan_hz.get(), self.shared_start_time, ))
         self.processes[1] = multiprocessing.Process(target=Secondary_Camera_Control.run, args= (self.shared_queue_primary_camera, 19061546, self.shared_queue_running_experiment, ))
         self.processes[2] = multiprocessing.Process(target=Primary_Camera_Control.run, args= (self.shared_queue_secondary_camera, 19061331, self.shared_queue_running_experiment, ))
-        for i in range(3):
-            self.processes[i].start()
+        self.processes[3] = multiprocessing.Process(target=Timer_Control.run, args= (self.shared_queue_running_experiment, self.shared_total_seconds, ))
+        for i in range(4):
+            self.processes[i].start() 
+
+        # ~ FUNCTION CALLS ~
+        self.run_experiment()
+        
+
+    #
+    def run_experiment(self):
+        # ~ UPDATE PREVIEW ~
+        self.img_p.configure(image = ImageTk.PhotoImage(Image.fromarray(self.shared_queue_primary_camera.get()).resize((439, 350), Image.ANTIALIAS)))
+        self.img_s.configure(image = ImageTk.PhotoImage(Image.fromarray(self.shared_queue_secondary_camera.get()).resize((439, 350), Image.ANTIALIAS)))
+
+        # ~ UPDATE TIMER ~
+        m, s = divmod(self.shared_total_seconds.value, 60)
+        self.time_label.set('%d minute(s), %d seconds' % (m, s))
 
 
-    # Given a script name, this spawns a sepearte process running the given script name
-    def run_process(self, process):
-        print("Spawned %s" % process)                                                          
-        os.system('python {}'.format(process))  
+        # ~ RECURSION ~ Updates every 1000/Xhz ms
+        self.update_after_call_id = self.root.after(int(1000/self.scan_hz.get()), func= self.run_experiment)
 
 
     # Executed when the user clicks the stop button
     def end_experiment(self): 
+        # Set local boolean to false
         self.experiment_in_progress = False
 
+        # Adding item to queue halts processes 
         self.shared_queue_running_experiment.put('END OF EXPERIMENT')
+
+        #
+        self.root.after_cancel(self.update_after_call_id)
         
-        # for i in range(2,0,-1):
-        #     self.processes[i].terminate()
-        
-        for i in range(2,0,-1):
+        # Block GUI until processes finish
+        for i in range(3,0,-1):
             self.processes[i].join()
-        print('Done!')  
+        print('Done! Seconds: %d' % self.shared_total_seconds.value)  
 
 
     # Handles when the main window is closed via the exit button on the main window

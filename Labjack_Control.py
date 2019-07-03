@@ -2,54 +2,115 @@ import u3
 import LabJackPython
 import sys
 from tkinter import messagebox, Tk
+import os
 
     
-def run(running_experiment_queue):
-    file = open('testfile_L_run.txt','w') 
-    file.write('Hello World from LC; In run!')
-    file.close()
+def run(running_experiment_queue, scan_frequency, start_time):
+    # ~ VARIABLES ~
+    time_incrementer = 0.000000
+    tbs = 1.0/scan_frequency
 
-    # # Store passed arguments
-    # # NOTE: sys.argv[0] is the script name
-    # # Expected to recieve a camera object from the master script
-    # try:
-    #     if isinstance(lj, u3.U3):
-    #         labjack = lj 
-    #     else:
-    #         messagebox.showerror("Error", "Argument[1] passed to Labjack_Control was not a u3.U3 object")
-    #         # Close/End processes
-    # except Exception as ex: 
-    #     messagebox.showerror("Error", "%s" % ex)
-    #         #TODO: EXIT EXPERIMENT
+    # ~ DATA FILE ~
+    # If dne this will create the file at the specified location;
+    #os.makedirs(os.path.dirname(self.filepath), exist_ok=True)
+    # Open a file at the selected file path; 
+    file_io = open('Labjack_Stream.dat', "w")
+    
+    # Format data output file
 
-    labjack = u3.U3()
+    # Current date 
+    file_io.write(start_time.strftime("%m/%d/%Y") + "\n")
 
+    # Current time
+    file_io.write(start_time.strftime("%I:%M:%S %p") + "\n" + "\n")
+
+    # Channel Info
+    for i in range(8):
+        file_io.write("Insert channel info here... \n")
+    
+    # Add Spacer
+    file_io.write("\n")
+
+    #Labels for the tops of the channels seperated by three tabs
+    file_io.write("Time\t\t   v0\t\t   v1\t\t   v2\t\t   v3\t\t   v4\t\t   v5\t\t   v6\t\t   v7\t\t   y0\t\t   y1\t\t   y2\t\t   y3\t\t   y4\t\t   y5\t\t   y6\t\t   y7 \n")
+
+    # ~ LABJACK ~
     # Init Labjack
-    # TODO: ScanFreq set by user
-    labjack.getCalibrationData() # Calibration data will be used by functions that convert binary data to voltage/temperature and vice versa
-    labjack.configIO(FIOAnalog= 255) # Set the FIO to read in analog; 255 sets all eight FIO ports to analog
+    labjack = u3.U3()
+    # Calibration data will be used by functions that convert binary data to voltage/temperature and vice versa
+    labjack.getCalibrationData() 
+    # Set the FIO to read in analog; 255 sets all eight FIO ports to analog
+    labjack.configIO(FIOAnalog= 255) 
+    # Set the stream configuration
     # labjack.streamConfig(NumChannels= self.num_channels.get(), PChannels=range(self.num_channels.get()), NChannels=[31]*self.num_channels.get(), Resolution=1, ScanFrequency=self.scan_hz.get())
-    labjack.streamConfig(NumChannels= 8, PChannels=range(8), NChannels=[31]*8, Resolution=1, ScanFrequency=200)
+    labjack.streamConfig(NumChannels= 8, PChannels=range(8), NChannels=[31]*8, Resolution=1, ScanFrequency= scan_frequency)
 
-    # Stream the data
+    # ~ STREAM ~
+    # Start labjack stream
     try:
         labjack.streamStart()
     except:
         labjack.streamStop()
         labjack.streamStart()
-
+    
+    # Stream the data into lists
     for r in labjack.streamData():
+        # Lists for each analog to hold the newly streamed data
+        new_data_ain0 = []
+        new_data_ain1 = []
+        new_data_ain2 = []
+        new_data_ain3 = []
+        new_data_ain4 = []
+        new_data_ain5 = []
+        new_data_ain6 = []
+        new_data_ain7 = []
+        time_stamps = []
+
         if r is not None:
-            #new_data_ain0.extend(r['AIN0'])
-            pass
+            new_data_ain0.extend(r['AIN0'])
+            new_data_ain1.extend(r['AIN1'])
+            new_data_ain2.extend(r['AIN2'])
+            new_data_ain3.extend(r['AIN3'])
+            new_data_ain4.extend(r['AIN4'])
+            new_data_ain5.extend(r['AIN5'])
+            new_data_ain6.extend(r['AIN6'])
+            new_data_ain7.extend(r['AIN7'])
         else:
-            pass
+            continue
+
+        time_stamps = [time_incrementer + t * tbs for t in (range(len(new_data_ain7)))]
+
+        # The current time for the next set of scans
+        time_incrementer = time_stamps[-1] + tbs 
+
+        # List to hold newly obtained data and time stamps
+        data_list = [time_stamps, new_data_ain0, new_data_ain1, new_data_ain2, new_data_ain3, new_data_ain4, new_data_ain5,new_data_ain6, new_data_ain7]
 
         # Write the data 
+        # Increments vertically
+        for i in range(len(data_list[-1])):
+            # Increments horizontally
+            for j in range(len(data_list)):
+                # If not last list, print with with tabs
+                if j != (len(data_list) - 1):
+                    # self.f.write(str(round(data_list[j][i], 6)) + "\r\t")
+                    file_io.write('{:.6f}'.format(round(data_list[j][i], 6)) + "\t")
+                # Else print with no tabs and end line
+                else:
+                    #self.f.write(str(round(data_list[j][i], 6)))
+                    file_io.write("\n")
 
-        #Pipe/Send data back to master
+        # Pipe/Send data back to master
 
+        # Break out of loop if experiment is done
         if not running_experiment_queue.empty():
-            labjack.streamStop()
+            break
+
+    # Stop stream
+    labjack.streamStop()
+
+    # Colse the data file
+    file_io.close()
+            
 
 

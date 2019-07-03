@@ -6,11 +6,6 @@ from tkinter import messagebox
 
 
 def run(queue, serial_number, running_experiment_queue):
-    file = open('testfile_S_run.txt','w') 
-    file.write('Hello World from SCC; In run! %d' % serial_number)
-    file.close()
-
-
     # Get system
     system = PySpin.System.GetInstance()
     # Get camera list
@@ -69,9 +64,10 @@ def run(queue, serial_number, running_experiment_queue):
         # Append to video
         avi_video_secondary.Append(image)
 
-        # Pipe/Send image(s) back to the master process
         # Converts the grabbed image from ram into an Numpy array
         bimg = image.GetNDArray()
+
+        # Pipe/Send image(s) back to the master process
         queue.put(bimg)
 
     avi_video_secondary.Close()
