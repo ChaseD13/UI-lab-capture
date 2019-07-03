@@ -257,7 +257,7 @@ class MainWindow():
         self.experiment_in_progress = True
 
         # change the current working directory to specified path 
-        os.chdir('C://Users/Behavior Scoring/Desktop/UI-lab-capture') 
+        os.chdir(self.working_directory) 
 
         # Initialize variables to pass to the processes
         # self.man = multiprocessing.Manager()
