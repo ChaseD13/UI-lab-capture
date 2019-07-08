@@ -250,6 +250,7 @@ class MainWindow():
         # Initialize variables to pass to the processes
         self.shared_queue_voltage_values = multiprocessing.Queue()
         self.shared_total_seconds = multiprocessing.Manager().Value('i', 0)
+        self.shared_filename = multiprocessing.Manager().Value('s', self.filename)
         self.shared_queue_primary_camera = multiprocessing.Queue()
         self.shared_queue_secondary_camera = multiprocessing.Queue()
         self.shared_queue_running_experiment = multiprocessing.Queue()
@@ -294,17 +295,7 @@ class MainWindow():
         # Max number of items to be displayed on graph
         self.max_items = self.scan_hz.get() * self.hz_to_mil
 
-        # Voltage readings 
-        self.data_ain0 = []
-        self.data_ain1 = []
-        self.data_ain2 = []
-        self.data_ain3 = []
-        self.data_ain4 = []
-        self.data_ain5 = []
-        self.data_ain6 = []
-        self.data_ain7 = []
-
-        # Graph lists
+        # Voltage readings and Graph lists
         self.data_ain0_graph = [0] * self.max_items
         self.data_ain1_graph = [0] * self.max_items
         self.data_ain2_graph = [0] * self.max_items
@@ -326,7 +317,7 @@ class MainWindow():
             print(ex)
 
         # ~ PROCESSES(cont.) ~
-        self.processes[0] = multiprocessing.Process(target= Labjack_Control.run, args= (self.shared_queue_running_experiment, self.scan_hz.get(), self.shared_start_time, self.shared_queue_voltage_values, ))
+        self.processes[0] = multiprocessing.Process(target= Labjack_Control.run, args= (self.shared_queue_running_experiment, self.scan_hz.get(), self.shared_start_time, self.shared_queue_voltage_values, self.shared_filename, ))
         self.processes[3] = multiprocessing.Process(target= Timer_Control.run, args= (self.shared_queue_running_experiment, self.shared_total_seconds, ))
         self.processes[0].start() 
         self.processes[3].start() 
@@ -342,10 +333,12 @@ class MainWindow():
         self.img_s.configure(image = self.simg)
         self.img_s.image = self.simg # Reference
 
+
         if self.experiment_in_progress:
             # ~ Parse Labjack Data ~
             labjack_data = self.shared_queue_voltage_values.get()
 
+            # Grab Labjack data readings
             labjack_data.pop(0)
             self.data_ain0_graph.extend(labjack_data.pop(0))
             self.data_ain1_graph.extend(labjack_data.pop(0))
@@ -427,7 +420,11 @@ class MainWindow():
         for i in range(3,0,-1):
             self.processes[i].join()
 
-        print('Done! Seconds: %d' % self.shared_total_seconds.value)  
+        self.file_log = open(self.working_directory + '/LOG.txt', "a+")
+        self.file_log.write('Primary camera missed %d frames \n' % self.shared_frames_missed_primary.value)
+        self.file_log.write('Secondary camera missed %d frames \n' % self.shared_frames_missed_secondary.value)
+        self.file_log.write('Done! Experiment ran for %d seconds' % self.shared_total_seconds.value)  
+        self.file_log.close()
 
         self.root.destroy()
 

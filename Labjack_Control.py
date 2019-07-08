@@ -5,18 +5,16 @@ from tkinter import messagebox, Tk
 import os
 
     
-def run(running_experiment_queue, scan_frequency, start_time, voltage_values):
+def run(running_experiment_queue, scan_frequency, start_time, voltage_values, file_name):
     # ~ VARIABLES ~
     time_incrementer = 0.000000
     tbs = 1.0/scan_frequency
 
     # ~ DATA FILE ~
-    # If dne this will create the file at the specified location;
-    #os.makedirs(os.path.dirname(self.filepath), exist_ok=True)
     # Open a file at the selected file path; 
-    file_io = open('Labjack_Stream.dat', "w")
+    file_io = open(file_name.value + '.dat', "w")
     
-    # Format data output file
+    # ~ FORMAT ~
 
     # Current date 
     file_io.write(start_time.strftime("%m/%d/%Y") + "\n")
@@ -107,6 +105,7 @@ def run(running_experiment_queue, scan_frequency, start_time, voltage_values):
         if not running_experiment_queue.empty():
             break
 
+    # ~ CLOSE ~
     # Stop stream
     labjack.streamStop()
 
