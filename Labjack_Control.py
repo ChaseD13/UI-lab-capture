@@ -5,7 +5,7 @@ from tkinter import messagebox, Tk
 import os
 
     
-def run(running_experiment_queue, scan_frequency, start_time):
+def run(running_experiment_queue, scan_frequency, start_time, voltage_values):
     # ~ VARIABLES ~
     time_incrementer = 0.000000
     tbs = 1.0/scan_frequency
@@ -84,7 +84,10 @@ def run(running_experiment_queue, scan_frequency, start_time):
         time_incrementer = time_stamps[-1] + tbs 
 
         # List to hold newly obtained data and time stamps
-        data_list = [time_stamps, new_data_ain0, new_data_ain1, new_data_ain2, new_data_ain3, new_data_ain4, new_data_ain5,new_data_ain6, new_data_ain7]
+        data_list = [time_stamps, new_data_ain0, new_data_ain1, new_data_ain2, new_data_ain3, new_data_ain4, new_data_ain5, new_data_ain6, new_data_ain7]
+
+        # Pipe/Send data back to master
+        voltage_values.put(data_list)
 
         # Write the data 
         # Increments vertically
@@ -97,10 +100,8 @@ def run(running_experiment_queue, scan_frequency, start_time):
                     file_io.write('{:.6f}'.format(round(data_list[j][i], 6)) + "\t")
                 # Else print with no tabs and end line
                 else:
-                    #self.f.write(str(round(data_list[j][i], 6)))
+                    file_io.write(str(round(data_list[j][i], 6)))
                     file_io.write("\n")
-
-        # Pipe/Send data back to master
 
         # Break out of loop if experiment is done
         if not running_experiment_queue.empty():
@@ -109,8 +110,12 @@ def run(running_experiment_queue, scan_frequency, start_time):
     # Stop stream
     labjack.streamStop()
 
-    # Colse the data file
+    # Close the data file
     file_io.close()
+
+    # Close all UD driver opened devices in the process
+    LabJackPython.Close() 
+
             
 
 

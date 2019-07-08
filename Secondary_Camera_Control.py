@@ -3,9 +3,10 @@ import numpy as np
 import PySpin
 import multiprocessing
 from tkinter import messagebox
+from PIL import Image, ImageTk
 
 
-def run(queue, serial_number, running_experiment_queue):
+def run(queue, serial_number, running_experiment_queue, camera_fps):
     # Get system
     system = PySpin.System.GetInstance()
     # Get camera list
@@ -27,18 +28,21 @@ def run(queue, serial_number, running_experiment_queue):
 
     # Setup the hardware triggers
     # NOTE: Turned off for now because gpio pins not connected
+    secondary_camera.TriggerMode.SetValue(PySpin.TriggerMode_Off)
 
-    # # Set up primary camera trigger
-    # secondary_camera.LineSelector.SetValue(PySpin.LineSelector_Line2)
-    # secondary_camera.V3_3Enable.SetValue(True)
+    # Set up secondary camera trigger
+    # secondary_camera.TriggerSource.SetValue(PySpin.TriggerSource_Line3)
+    # secondary_camera.TriggerOverlap.SetValue(PySpin.TriggerOverlap_ReadOut)
+    # secondary_camera.TriggerMode.SetValue(PySpin.TriggerMode_On)# # Set up primary camera trigger
+
 
     # Set acquisition mode
     secondary_camera.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
-
+    
     # Set aquisition rate to desired fps for both cameras
     #TODO: Make this argument changeable
     secondary_camera.AcquisitionFrameRateEnable.SetValue(True)
-    secondary_camera.AcquisitionFrameRate.SetValue(60)
+    secondary_camera.AcquisitionFrameRate.SetValue(camera_fps.value)
 
     secondary_camera.BeginAcquisition()
 
@@ -51,7 +55,7 @@ def run(queue, serial_number, running_experiment_queue):
     #TODO: Make the video path save to the working directory of the experiment
     filename_secondary = 'SaveToAvi-MJPG-secondary'
     option_secondary = PySpin.MJPGOption()
-    option_secondary.frameRate = 60
+    option_secondary.frameRate = camera_fps.value
     option_secondary.quality = 75
 
     #Open the recording file for both camera

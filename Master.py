@@ -101,7 +101,7 @@ class SettingsWindow():
         self.root.destroy()
 
 
-#
+# Runs the main GUI window
 class MainWindow():
     # Initialization; Takes in an active directory path as a parameter
     def __init__(self, active_directory, primary_serial_number, fss, bsfl, wd):
@@ -150,7 +150,7 @@ class MainWindow():
         self.scrolling_graph = tk.Frame(self.root)
         self.scrolling_graph.pack(side = "right", expand = True, fill = "both")
 
-        # ~STYLE~
+        # ~ STYLE ~
 
         # Change the title of the window
         self.root.title("UI Lab Capture")
@@ -159,8 +159,7 @@ class MainWindow():
         self.root.state('zoomed')
 
 
-        # ~VARIABLES~
-
+        # ~ VARIABLES ~
         self.var0 = tk.IntVar() # Voltage being read from the labjack at FIO0
         self.var1 = tk.IntVar() # Voltage being read from the labjack at FIO1
         self.var2 = tk.IntVar() # Voltage being read from the labjack at FIO2
@@ -170,7 +169,7 @@ class MainWindow():
         self.var6 = tk.IntVar() # Voltage being read from the labjack at FIO6
         self.var7 = tk.IntVar() # Voltage being read from the labjack at FIO7
 
-        # ~ELEMENTS~
+        # ~ ELEMENTS ~
 
         # Frame to hold primary camera images
         self.img_p = tk.Label(self.camera_frame)
@@ -223,7 +222,7 @@ class MainWindow():
         # Labl and entry for the Blackfly cameras fps
         tk.Label(self.labjack_values, text= 'BlackFly FPS:').pack()
         self.frame_rate_input = tk.IntVar()
-        self.frame_rate_input.set("60")
+        self.frame_rate_input.set("30")
         self.scan_space = tk.Entry(self.labjack_values, textvariable = self.frame_rate_input)
         self.scan_space.pack(padx = 10, pady = 10)
 
@@ -261,6 +260,46 @@ class MainWindow():
         # Running experiment
         self.experiment_in_progress = True
 
+        # Time between scans in seconds
+        self.tbs = 1.0/self.scan_hz.get()
+
+        # Convert the given hz into milliseconds
+        self.hz_to_mil = int(self.tbs * 1000)
+
+        # Max number of items to be displayed on graph
+        self.max_items = self.scan_hz.get() * self.hz_to_mil
+
+        # Voltage readings 
+        self.data_ain0 = []
+        self.data_ain1 = []
+        self.data_ain2 = []
+        self.data_ain3 = []
+        self.data_ain4 = []
+        self.data_ain5 = []
+        self.data_ain6 = []
+        self.data_ain7 = []
+
+        # Graph lists
+        self.data_ain0_graph = [0] * self.max_items
+        self.data_ain1_graph = [0] * self.max_items
+        self.data_ain2_graph = [0] * self.max_items
+        self.data_ain3_graph = [0] * self.max_items
+        self.data_ain4_graph = [0] * self.max_items
+        self.data_ain5_graph = [0] * self.max_items
+        self.data_ain6_graph = [0] * self.max_items
+        self.data_ain7_graph = [0] * self.max_items
+
+        # Set an array to hold time incriments
+        self.time_inc = []
+        for x in np.arange(0.0, self.hz_to_mil, self.hz_to_mil/self.max_items):
+            self.time_inc.append(x)
+
+        # Create a subplot in the canvas f
+        try:
+            self.ax1 = self.f.add_subplot(1,1,1)
+        except Exception as ex:
+            print(ex)
+
         # change the current working directory to specified path 
         os.chdir(self.working_directory) 
 
@@ -268,13 +307,15 @@ class MainWindow():
         self.shared_queue_primary_camera = multiprocessing.Queue()
         self.shared_queue_secondary_camera = multiprocessing.Queue()
         self.shared_queue_running_experiment = multiprocessing.Queue()
+        self.shared_queue_voltage_values = multiprocessing.Queue()
         self.shared_total_seconds = multiprocessing.Manager().Value('i', 0)
+        self.shared_frames_per_second = multiprocessing.Manager().Value('i', self.frame_rate_input.get())
 
         # ~ PROCESSES ~
         self.processes = [None] * 4  
-        self.processes[0] = multiprocessing.Process(target=Labjack_Control.run, args= (self.shared_queue_running_experiment, self.scan_hz.get(), self.shared_start_time, ))
-        self.processes[1] = multiprocessing.Process(target=Secondary_Camera_Control.run, args= (self.shared_queue_primary_camera, 19061546, self.shared_queue_running_experiment, ))
-        self.processes[2] = multiprocessing.Process(target=Primary_Camera_Control.run, args= (self.shared_queue_secondary_camera, 19061331, self.shared_queue_running_experiment, ))
+        self.processes[0] = multiprocessing.Process(target=Labjack_Control.run, args= (self.shared_queue_running_experiment, self.scan_hz.get(), self.shared_start_time, self.shared_queue_voltage_values, ))
+        self.processes[1] = multiprocessing.Process(target=Secondary_Camera_Control.run, args= (self.shared_queue_primary_camera, 19061546, self.shared_queue_running_experiment, self.shared_frames_per_second, ))
+        self.processes[2] = multiprocessing.Process(target=Primary_Camera_Control.run, args= (self.shared_queue_secondary_camera, 19061331, self.shared_queue_running_experiment, self.shared_frames_per_second, ))
         self.processes[3] = multiprocessing.Process(target=Timer_Control.run, args= (self.shared_queue_running_experiment, self.shared_total_seconds, ))
         for i in range(4):
             self.processes[i].start() 
@@ -286,13 +327,22 @@ class MainWindow():
     #
     def run_experiment(self):
         # ~ UPDATE PREVIEW ~
-        self.img_p.configure(image = ImageTk.PhotoImage(Image.fromarray(self.shared_queue_primary_camera.get()).resize((439, 350), Image.ANTIALIAS)))
-        self.img_s.configure(image = ImageTk.PhotoImage(Image.fromarray(self.shared_queue_secondary_camera.get()).resize((439, 350), Image.ANTIALIAS)))
+        self.pimg = ImageTk.PhotoImage(Image.fromarray(self.shared_queue_primary_camera.get()).resize((439, 350), Image.ANTIALIAS))
+        self.simg = ImageTk.PhotoImage(Image.fromarray(self.shared_queue_secondary_camera.get()).resize((439, 350), Image.ANTIALIAS))
+        self.img_p.configure(image = self.pimg )
+        self.img_p.image = self.pimg # Reference
+        self.img_s.configure(image = self.simg)
+        self.img_s.image = self.simg # Reference
 
+        # ~ UPDATE VOLTAGES ~ 
+        
+
+        # ~ UPDATE GRAPH ~
+
+    
         # ~ UPDATE TIMER ~
         m, s = divmod(self.shared_total_seconds.value, 60)
         self.time_label.set('%d minute(s), %d seconds' % (m, s))
-
 
         # ~ RECURSION ~ Updates every 1000/Xhz ms
         self.update_after_call_id = self.root.after(int(1000/self.scan_hz.get()), func= self.run_experiment)
@@ -312,7 +362,10 @@ class MainWindow():
         # Block GUI until processes finish
         for i in range(3,0,-1):
             self.processes[i].join()
+
         print('Done! Seconds: %d' % self.shared_total_seconds.value)  
+
+        self.root.destroy()
 
 
     # Handles when the main window is closed via the exit button on the main window

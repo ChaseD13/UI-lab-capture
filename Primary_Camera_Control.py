@@ -3,9 +3,11 @@ import numpy as np
 import PySpin
 import multiprocessing
 from tkinter import messagebox
+from PIL import Image, ImageTk
 
 
-def run(queue, serial_number, running_experiment_queue):
+
+def run(queue, serial_number, running_experiment_queue, camera_fps):
     # Get system
     system = PySpin.System.GetInstance()
     # Get camera list
@@ -38,7 +40,7 @@ def run(queue, serial_number, running_experiment_queue):
     # Set aquisition rate to desired fps for both cameras
     #TODO: Make this argument changeable
     primary_camera.AcquisitionFrameRateEnable.SetValue(True)
-    primary_camera.AcquisitionFrameRate.SetValue(60)
+    primary_camera.AcquisitionFrameRate.SetValue(camera_fps.value)
 
     primary_camera.BeginAcquisition()
 
@@ -51,7 +53,7 @@ def run(queue, serial_number, running_experiment_queue):
     #TODO: Make the video path save to the working directory of the experiment
     filename_primary = 'SaveToAvi-MJPG-primary'
     option_primary = PySpin.MJPGOption()
-    option_primary.frameRate = 60
+    option_primary.frameRate = camera_fps.value
     option_primary.quality = 75
 
     #Open the recording file for both camera
