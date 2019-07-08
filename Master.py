@@ -132,7 +132,6 @@ class MainWindow():
             tk.messagebox.showerror("Error", '%s' % ex)
             self.on_close()
 
-
     # Builds the main GUI window 
     def build_window(self):
         # Initialize a window
@@ -222,7 +221,7 @@ class MainWindow():
         # Labl and entry for the Blackfly cameras fps
         tk.Label(self.labjack_values, text= 'BlackFly FPS:').pack()
         self.frame_rate_input = tk.IntVar()
-        self.frame_rate_input.set("30")
+        self.frame_rate_input.set("15")
         self.scan_space = tk.Entry(self.labjack_values, textvariable = self.frame_rate_input)
         self.scan_space.pack(padx = 10, pady = 10)
 
@@ -244,6 +243,29 @@ class MainWindow():
         self.canvas.get_tk_widget().pack(side = "top", fill = "both", expand = True)
         self.canvas.draw()
 
+        # ~ PROCESSES ~
+        # change the current working directory to specified path 
+        os.chdir(self.working_directory) 
+
+        # Initialize variables to pass to the processes
+        self.shared_queue_voltage_values = multiprocessing.Queue()
+        self.shared_total_seconds = multiprocessing.Manager().Value('i', 0)
+        self.shared_queue_primary_camera = multiprocessing.Queue()
+        self.shared_queue_secondary_camera = multiprocessing.Queue()
+        self.shared_queue_running_experiment = multiprocessing.Queue()
+        self.shared_frames_per_second = multiprocessing.Manager().Value('i', self.frame_rate_input.get())
+        self.shared_queue_running_preview = multiprocessing.Queue()
+        self.shared_frames_missed_primary = multiprocessing.Manager().Value('i', self.frame_rate_input.get())
+        self.shared_frames_missed_secondary = multiprocessing.Manager().Value('i', self.frame_rate_input.get())
+
+        self.processes = [None] * 4 
+        self.processes[1] = multiprocessing.Process(target= Secondary_Camera_Control.run, args= (self.shared_queue_secondary_camera, 19061546, self.shared_queue_running_experiment, self.shared_frames_per_second, self.shared_queue_running_preview, self.shared_frames_missed_secondary, ))
+        self.processes[2] = multiprocessing.Process(target= Primary_Camera_Control.run, args= (self.shared_queue_primary_camera, 19061331, self.shared_queue_running_experiment, self.shared_frames_per_second, self.shared_queue_running_preview, self.shared_frames_missed_primary, ))
+        self.processes[1].start() 
+        self.processes[2].start() 
+
+        self.root.after(100, func= self.run_experiment)
+
         #Handle interrupt 
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
@@ -259,6 +281,9 @@ class MainWindow():
 
         # Running experiment
         self.experiment_in_progress = True
+        
+        # Signals cameras to start recording
+        self.shared_queue_running_preview.put("Now Running Experiment")
 
         # Time between scans in seconds
         self.tbs = 1.0/self.scan_hz.get()
@@ -300,31 +325,14 @@ class MainWindow():
         except Exception as ex:
             print(ex)
 
-        # change the current working directory to specified path 
-        os.chdir(self.working_directory) 
-
-        # Initialize variables to pass to the processes
-        self.shared_queue_primary_camera = multiprocessing.Queue()
-        self.shared_queue_secondary_camera = multiprocessing.Queue()
-        self.shared_queue_running_experiment = multiprocessing.Queue()
-        self.shared_queue_voltage_values = multiprocessing.Queue()
-        self.shared_total_seconds = multiprocessing.Manager().Value('i', 0)
-        self.shared_frames_per_second = multiprocessing.Manager().Value('i', self.frame_rate_input.get())
-
-        # ~ PROCESSES ~
-        self.processes = [None] * 4  
-        self.processes[0] = multiprocessing.Process(target=Labjack_Control.run, args= (self.shared_queue_running_experiment, self.scan_hz.get(), self.shared_start_time, self.shared_queue_voltage_values, ))
-        self.processes[1] = multiprocessing.Process(target=Secondary_Camera_Control.run, args= (self.shared_queue_primary_camera, 19061546, self.shared_queue_running_experiment, self.shared_frames_per_second, ))
-        self.processes[2] = multiprocessing.Process(target=Primary_Camera_Control.run, args= (self.shared_queue_secondary_camera, 19061331, self.shared_queue_running_experiment, self.shared_frames_per_second, ))
-        self.processes[3] = multiprocessing.Process(target=Timer_Control.run, args= (self.shared_queue_running_experiment, self.shared_total_seconds, ))
-        for i in range(4):
-            self.processes[i].start() 
-
-        # ~ FUNCTION CALLS ~
-        self.run_experiment()
+        # ~ PROCESSES(cont.) ~
+        self.processes[0] = multiprocessing.Process(target= Labjack_Control.run, args= (self.shared_queue_running_experiment, self.scan_hz.get(), self.shared_start_time, self.shared_queue_voltage_values, ))
+        self.processes[3] = multiprocessing.Process(target= Timer_Control.run, args= (self.shared_queue_running_experiment, self.shared_total_seconds, ))
+        self.processes[0].start() 
+        self.processes[3].start() 
         
 
-    #
+    # Update the components of the GUI
     def run_experiment(self):
         # ~ UPDATE PREVIEW ~
         self.pimg = ImageTk.PhotoImage(Image.fromarray(self.shared_queue_primary_camera.get()).resize((439, 350), Image.ANTIALIAS))
@@ -334,11 +342,67 @@ class MainWindow():
         self.img_s.configure(image = self.simg)
         self.img_s.image = self.simg # Reference
 
-        # ~ UPDATE VOLTAGES ~ 
-        
+        if self.experiment_in_progress:
+            # ~ Parse Labjack Data ~
+            labjack_data = self.shared_queue_voltage_values.get()
 
-        # ~ UPDATE GRAPH ~
+            labjack_data.pop(0)
+            self.data_ain0_graph.extend(labjack_data.pop(0))
+            self.data_ain1_graph.extend(labjack_data.pop(0))
+            self.data_ain2_graph.extend(labjack_data.pop(0))
+            self.data_ain3_graph.extend(labjack_data.pop(0))
+            self.data_ain4_graph.extend(labjack_data.pop(0))
+            self.data_ain5_graph.extend(labjack_data.pop(0))
+            self.data_ain6_graph.extend(labjack_data.pop(0))
+            self.data_ain7_graph.extend(labjack_data.pop(0))
 
+            # ~ UPDATE VOLTAGES ~ 
+            self.var0.set(round(self.data_ain0_graph[0],2))
+            self.var1.set(round(self.data_ain1_graph[0],2))
+            self.var2.set(round(self.data_ain2_graph[0],2))
+            self.var3.set(round(self.data_ain3_graph[0],2))
+            self.var4.set(round(self.data_ain4_graph[0],2))
+            self.var5.set(round(self.data_ain5_graph[0],2))
+            self.var6.set(round(self.data_ain6_graph[0],2))
+            self.var7.set(round(self.data_ain7_graph[0],2))
+
+            # ~ UPDATE GRAPH ~
+            # Remove older data from the front of the lists
+            self.data_ain0_graph = self.data_ain0_graph[-self.max_items:]
+            self.data_ain1_graph = self.data_ain1_graph[-self.max_items:]
+            self.data_ain2_graph = self.data_ain2_graph[-self.max_items:]
+            self.data_ain3_graph = self.data_ain3_graph[-self.max_items:]
+            self.data_ain4_graph = self.data_ain4_graph[-self.max_items:]
+            self.data_ain5_graph = self.data_ain5_graph[-self.max_items:]
+            self.data_ain6_graph = self.data_ain6_graph[-self.max_items:]
+            self.data_ain7_graph = self.data_ain7_graph[-self.max_items:]
+
+            # Plot the array with new information on the graph 
+            self.ax1.clear()
+
+            # Set fixed axis values
+            self.ax1.set_xlim([0,self.hz_to_mil])
+            self.ax1.set_ylim([-.5,5])
+
+            # Label axes
+            self.ax1.set_xlabel('time (s)')
+            self.ax1.set_ylabel('amplitude')
+
+            # Plot the new data for each analog
+            self.ax1.plot(self.time_inc, self.data_ain0_graph, label = 'AIN0')
+            self.ax1.plot(self.time_inc, self.data_ain1_graph, label = 'AIN1')
+            self.ax1.plot(self.time_inc, self.data_ain2_graph, label = 'AIN2')
+            self.ax1.plot(self.time_inc, self.data_ain3_graph, label = 'AIN3')
+            self.ax1.plot(self.time_inc, self.data_ain4_graph, label = 'AIN4')
+            self.ax1.plot(self.time_inc, self.data_ain5_graph, label = 'AIN5')
+            self.ax1.plot(self.time_inc, self.data_ain6_graph, label = 'AIN6')
+            self.ax1.plot(self.time_inc, self.data_ain7_graph, label = 'AIN7')
+
+            # Create a legend for each analog to make dta tracking easier
+            self.ax1.legend()
+
+            # Display the new graph
+            self.canvas.draw()
     
         # ~ UPDATE TIMER ~
         m, s = divmod(self.shared_total_seconds.value, 60)
@@ -356,7 +420,7 @@ class MainWindow():
         # Adding item to queue halts processes 
         self.shared_queue_running_experiment.put('END OF EXPERIMENT')
 
-        #
+        #Cancel the update call
         self.root.after_cancel(self.update_after_call_id)
         
         # Block GUI until processes finish

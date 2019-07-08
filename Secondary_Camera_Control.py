@@ -6,7 +6,16 @@ from tkinter import messagebox
 from PIL import Image, ImageTk
 
 
-def run(queue, serial_number, running_experiment_queue, camera_fps):
+def run(queue, serial_number, running_experiment_queue, camera_fps, preview_queue, missed_frames):
+        # Starting frame number
+    starting_frame = 0
+
+    # Previous frame number
+    previous_frame = 0
+
+    # First iteration 
+    first_iteration = True
+
     # Get system
     system = PySpin.System.GetInstance()
     # Get camera list
@@ -65,8 +74,20 @@ def run(queue, serial_number, running_experiment_queue, camera_fps):
         # Acquire an image(s)
         image = secondary_camera.GetNextImage()
 
-        # Append to video
-        avi_video_secondary.Append(image)
+        if first_iteration:
+            first_iteration = False
+            starting_frame = image.GetFrameID()
+            previous_frame = starting_frame - 1
+
+        # Check if running experiment
+        if not preview_queue.empty():
+            # Append to video
+            avi_video_secondary.Append(image)
+
+             # Check for missed frame
+            if image.GetFrameID() != previous_frame + 1:
+                missed_frames.value += 1
+            previous_frame = image.GetFrameID()
 
         # Converts the grabbed image from ram into an Numpy array
         bimg = image.GetNDArray()
