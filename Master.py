@@ -132,6 +132,7 @@ class MainWindow():
             tk.messagebox.showerror("Error", '%s' % ex)
             self.on_close()
 
+
     # Builds the main GUI window 
     def build_window(self):
         # Initialize a window
@@ -248,16 +249,17 @@ class MainWindow():
         os.chdir(self.working_directory) 
 
         # Initialize variables to pass to the processes
-        self.shared_queue_voltage_values = multiprocessing.Queue()
-        self.shared_total_seconds = multiprocessing.Manager().Value('i', 0)
-        self.shared_filename = multiprocessing.Manager().Value('s', self.filename)
-        self.shared_queue_primary_camera = multiprocessing.Queue()
-        self.shared_queue_secondary_camera = multiprocessing.Queue()
-        self.shared_queue_running_experiment = multiprocessing.Queue()
-        self.shared_frames_per_second = multiprocessing.Manager().Value('i', self.frame_rate_input.get())
-        self.shared_queue_running_preview = multiprocessing.Queue()
-        self.shared_frames_missed_primary = multiprocessing.Manager().Value('i', self.frame_rate_input.get())
-        self.shared_frames_missed_secondary = multiprocessing.Manager().Value('i', self.frame_rate_input.get())
+        self.man = multiprocessing.Manager()
+        self.shared_queue_voltage_values = self.man.Queue()
+        self.shared_total_seconds = self.man.Value('i', 0)
+        self.shared_filename = self.man.Value('s', self.filename)
+        self.shared_queue_primary_camera = self.man.Queue(100)
+        self.shared_queue_secondary_camera = self.man.Queue(100)
+        self.shared_queue_running_experiment = self.man.Queue()
+        self.shared_frames_per_second = self.man.Value('i', self.frame_rate_input.get())
+        self.shared_queue_running_preview = self.man.Queue()
+        self.shared_frames_missed_primary = self.man.Value('i', self.frame_rate_input.get())
+        self.shared_frames_missed_secondary = self.man.Value('i', self.frame_rate_input.get())
 
         self.processes = [None] * 4 
         self.processes[1] = multiprocessing.Process(target= Secondary_Camera_Control.run, args= (self.shared_queue_secondary_camera, 19061546, self.shared_queue_running_experiment, self.shared_frames_per_second, self.shared_queue_running_preview, self.shared_frames_missed_secondary, ))
@@ -403,6 +405,7 @@ class MainWindow():
 
         # ~ RECURSION ~ Updates every 1000/Xhz ms
         self.update_after_call_id = self.root.after(int(1000/self.scan_hz.get()), func= self.run_experiment)
+        # self.update_after_call_id = self.root.after(1000, func= self.run_experiment)
 
 
     # Executed when the user clicks the stop button
@@ -413,19 +416,21 @@ class MainWindow():
         # Adding item to queue halts processes 
         self.shared_queue_running_experiment.put('END OF EXPERIMENT')
 
-        #Cancel the update call
+        # Cancel the update call
         self.root.after_cancel(self.update_after_call_id)
-        
+
         # Block GUI until processes finish
         for i in range(3,0,-1):
             self.processes[i].join()
 
+        # Write Logisitcs out to Log file
         self.file_log = open(self.working_directory + '/LOG.txt', "a+")
         self.file_log.write('Primary camera missed %d frames \n' % self.shared_frames_missed_primary.value)
         self.file_log.write('Secondary camera missed %d frames \n' % self.shared_frames_missed_secondary.value)
         self.file_log.write('Done! Experiment ran for %d seconds' % self.shared_total_seconds.value)  
         self.file_log.close()
 
+        # Kill GUI window
         self.root.destroy()
 
 
@@ -472,6 +477,7 @@ def main():
 
             #Call the build_window to create the main GUI window and starts the GUI
             app.build_window()
+            
         else:
             return 0
 

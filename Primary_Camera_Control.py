@@ -6,7 +6,6 @@ from tkinter import messagebox
 from PIL import Image, ImageTk
 
 
-
 def run(queue, serial_number, running_experiment_queue, camera_fps, preview_queue, missed_frames):
     # Starting frame number
     starting_frame = 0
@@ -31,10 +30,10 @@ def run(queue, serial_number, running_experiment_queue, camera_fps, preview_queu
     primary_camera.Init()
 
     # Retrieve GenICam nodemap
-    primary_nodemap = primary_camera.GetNodeMap()
+    # primary_nodemap = primary_camera.GetNodeMap()
 
     # Retrieve nodemap TLDevice
-    primary_nodemaptldevice = primary_camera.GetTLDeviceNodeMap()
+    # primary_nodemaptldevice = primary_camera.GetTLDeviceNodeMap()
 
     # Setup the hardware triggers
     # NOTE: Turned off for now because gpio pins not connected
@@ -93,6 +92,12 @@ def run(queue, serial_number, running_experiment_queue, camera_fps, preview_queu
         # Pipe/Send image(s) back to the master process
         queue.put(bimg)
 
-    avi_video_primary.Close()
+        # Remove image from the camera buffer
+        image.Release()
 
-    
+    avi_video_primary.Close()
+    primary_camera.EndAcquisition()
+    primary_camera.DeInit()
+    del primary_camera
+    del cam_list
+    del system      

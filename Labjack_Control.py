@@ -114,7 +114,3 @@ def run(running_experiment_queue, scan_frequency, start_time, voltage_values, fi
 
     # Close all UD driver opened devices in the process
     LabJackPython.Close() 
-
-            
-
-

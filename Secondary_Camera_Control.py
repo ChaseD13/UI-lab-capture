@@ -7,7 +7,7 @@ from PIL import Image, ImageTk
 
 
 def run(queue, serial_number, running_experiment_queue, camera_fps, preview_queue, missed_frames):
-        # Starting frame number
+    # Starting frame number
     starting_frame = 0
 
     # Previous frame number
@@ -30,10 +30,10 @@ def run(queue, serial_number, running_experiment_queue, camera_fps, preview_queu
     secondary_camera.Init()
 
     # Retrieve GenICam nodemap
-    secondary_nodemap = secondary_camera.GetNodeMap()
+    # secondary_nodemap = secondary_camera.GetNodeMap()
 
     # Retrieve nodemap TLDevice
-    secondary_nodemaptldevice = secondary_camera.GetTLDeviceNodeMap()
+    # secondary_nodemaptldevice = secondary_camera.GetTLDeviceNodeMap()
 
     # Setup the hardware triggers
     # NOTE: Turned off for now because gpio pins not connected
@@ -95,6 +95,12 @@ def run(queue, serial_number, running_experiment_queue, camera_fps, preview_queu
         # Pipe/Send image(s) back to the master process
         queue.put(bimg)
 
-    avi_video_secondary.Close()
+        # Remove image from the camera buffer
+        image.Release()
 
-    
+    avi_video_secondary.Close()
+    secondary_camera.EndAcquisition()
+    secondary_camera.DeInit()
+    del secondary_camera
+    del cam_list
+    del system
