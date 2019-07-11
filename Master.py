@@ -225,7 +225,7 @@ class MainWindow():
         # Labl and entry for the Blackfly cameras fps
         tk.Label(self.labjack_values, text= 'BlackFly FPS:').pack()
         self.frame_rate_input = tk.IntVar()
-        self.frame_rate_input.set("15")
+        self.frame_rate_input.set("30")
         self.scan_space = tk.Entry(self.labjack_values, textvariable = self.frame_rate_input)
         self.scan_space.pack(padx = 10, pady = 10)
 
@@ -273,8 +273,12 @@ class MainWindow():
         # ~ THREADS ~
         #self.root.after(100, func= self.run_experiment)
         self.preview_in_progress = True
-        self.thread_for_preview = threading.Thread(target= self.thread_preview)
-        self.thread_for_preview.start()
+        self.thread_for_preview_1 = threading.Thread(target= self.thread_preview)
+        self.thread_for_preview_2 = threading.Thread(target= self.thread_preview)
+        self.thread_for_preview_3 = threading.Thread(target= self.thread_preview)
+        self.thread_for_preview_1.start()
+        self.thread_for_preview_2.start()
+        self.thread_for_preview_3.start()
 
         # ~ GUI ~
         #Handle interrupt 
@@ -339,7 +343,7 @@ class MainWindow():
         self.thread_for_timer.start()
         self.thread_for_graph.start()
 
-        self.root.after(int(1000), self.update_graph)
+        self.update_after_call_id = self.root.after(int(1000), self.update_graph)
 
 
     # Update the components of the GUI
@@ -435,7 +439,7 @@ class MainWindow():
         self.shared_queue_running_experiment.put('END OF EXPERIMENT')
 
         # Cancel the update call
-        #self.root.after_cancel(self.update_after_call_id)
+        self.root.after_cancel(self.update_after_call_id)
 
         # Flush Queue
         while not self.shared_queue_primary_camera.empty():
@@ -445,8 +449,8 @@ class MainWindow():
             self.shared_queue_secondary_camera.get()
 
         # Block GUI until processes finish
-        # for i in range(3,-1,-1):
-        #     self.processes[i].join()
+        for i in range(3,-1,-1):
+            self.processes[i].join()
 
         # Block GUI until threads finish
         # self.thread_for_graph.join()
@@ -494,6 +498,7 @@ class MainWindow():
             m, s = divmod(self.shared_total_seconds.value, 60)
             self.time_label.set('%d minute(s), %d seconds' % (m, s))
             time.sleep(1)
+
 
     # Threading function to update data values based on the data recieved by the shared buffer between master and labjack_control
     def thread_graph(self):
@@ -561,13 +566,14 @@ class MainWindow():
             # self.canvas.draw() 
 
             time.sleep(1/self.scan_hz.get())
-        
+
+
     # Function to update the canavas in the main thread 
     # NOTE: Tkinter has problem if accessed by thread thats not main thread                
     def update_graph(self):
         self.canvas.draw()
         # time.sleep(1/self.scan_hz.get())
-        self.root.after(int(1000), self.update_graph)
+        self.update_after_call_id = self.root.after(int(1000), self.update_graph)
 
 
 # MAIN - Creates a startup window and the main GUI. Passes variables from startup window to the main window
