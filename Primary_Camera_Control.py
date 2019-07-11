@@ -5,7 +5,7 @@ import multiprocessing
 from tkinter import messagebox
 from PIL import Image, ImageTk
 
-
+# TODO: Possibly thread the video saving
 def run(queue, serial_number, running_experiment_queue, camera_fps, preview_queue, missed_frames):
     # Starting frame number
     starting_frame = 0
@@ -15,6 +15,9 @@ def run(queue, serial_number, running_experiment_queue, camera_fps, preview_queu
 
     # First iteration 
     first_iteration = True
+
+    # Write Logisitcs out to Log file
+    output_file = open('Frames_Primary.dat', "a+")
 
     # Get system
     system = PySpin.System.GetInstance()
@@ -84,7 +87,8 @@ def run(queue, serial_number, running_experiment_queue, camera_fps, preview_queu
             # Check for missed frame
             if image.GetFrameID() != previous_frame + 1:
                 missed_frames.value += 1
-            previous_frame = image.GetFrameID()
+                output_file.write('~~~~~~~~ MISSED FRAME HERE ~~~~~~~~ FID_%d :: PFID_%d :: PFID+1_%d\n' % (image.GetFrameID(), previous_frame, previous_frame + 1)) 
+        previous_frame = image.GetFrameID()
 
         # Converts the grabbed image from ram into an Numpy array
         bimg = image.GetNDArray()
@@ -92,9 +96,13 @@ def run(queue, serial_number, running_experiment_queue, camera_fps, preview_queu
         # Pipe/Send image(s) back to the master process
         queue.put(bimg)
 
+        output_file.write('%d\n' % image.GetFrameID()) 
+
         # Remove image from the camera buffer
         image.Release()
+         
 
+    output_file.close()
     avi_video_primary.Close()
     primary_camera.EndAcquisition()
     primary_camera.DeInit()

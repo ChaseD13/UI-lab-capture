@@ -14,6 +14,8 @@ import Labjack_Control
 import Primary_Camera_Control
 import Secondary_Camera_Control
 import Timer_Control
+import threading
+import time
 
 
 # Window to take in user input and apply settings for the experiment
@@ -111,6 +113,7 @@ class MainWindow():
         self.filename = bsfl # Holds the basefile name from the settings window
         self.working_directory = wd # Holds the file path designated by the user
         self.experiment_in_progress = False # Bool; Indicates when an experiment is happening(True) or not(False) 
+        self.preview_in_progress = False
 
 
     # Used to create and format the filesystem using information provided from the settings window
@@ -253,13 +256,13 @@ class MainWindow():
         self.shared_queue_voltage_values = self.man.Queue()
         self.shared_total_seconds = self.man.Value('i', 0)
         self.shared_filename = self.man.Value('s', self.filename)
-        self.shared_queue_primary_camera = self.man.Queue(100)
-        self.shared_queue_secondary_camera = self.man.Queue(100)
+        self.shared_queue_primary_camera = self.man.Queue(maxsize= 50)
+        self.shared_queue_secondary_camera = self.man.Queue(maxsize= 50)
         self.shared_queue_running_experiment = self.man.Queue()
         self.shared_frames_per_second = self.man.Value('i', self.frame_rate_input.get())
         self.shared_queue_running_preview = self.man.Queue()
-        self.shared_frames_missed_primary = self.man.Value('i', self.frame_rate_input.get())
-        self.shared_frames_missed_secondary = self.man.Value('i', self.frame_rate_input.get())
+        self.shared_frames_missed_primary = self.man.Value('i', 0)
+        self.shared_frames_missed_secondary = self.man.Value('i', 0)
 
         self.processes = [None] * 4 
         self.processes[1] = multiprocessing.Process(target= Secondary_Camera_Control.run, args= (self.shared_queue_secondary_camera, 19061546, self.shared_queue_running_experiment, self.shared_frames_per_second, self.shared_queue_running_preview, self.shared_frames_missed_secondary, ))
@@ -267,8 +270,13 @@ class MainWindow():
         self.processes[1].start() 
         self.processes[2].start() 
 
-        self.root.after(100, func= self.run_experiment)
+        # ~ THREADS ~
+        #self.root.after(100, func= self.run_experiment)
+        self.preview_in_progress = True
+        self.thread_for_preview = threading.Thread(target= self.thread_preview)
+        self.thread_for_preview.start()
 
+        # ~ GUI ~
         #Handle interrupt 
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
@@ -279,6 +287,8 @@ class MainWindow():
     # Executed when the user clicks the start button
     def begin_experiment(self):
         # ~ VARIABLES ~
+        self.preview_in_progress = False
+
         # Start time of the experiment
         self.shared_start_time = datetime.datetime.now()
 
@@ -323,7 +333,14 @@ class MainWindow():
         self.processes[3] = multiprocessing.Process(target= Timer_Control.run, args= (self.shared_queue_running_experiment, self.shared_total_seconds, ))
         self.processes[0].start() 
         self.processes[3].start() 
-        
+
+        self.thread_for_timer = threading.Thread(target= self.thread_timer)
+        self.thread_for_graph = threading.Thread(target= self.thread_graph)
+        self.thread_for_timer.start()
+        self.thread_for_graph.start()
+
+        self.root.after(int(1000), self.update_graph)
+
 
     # Update the components of the GUI
     def run_experiment(self):
@@ -409,6 +426,7 @@ class MainWindow():
 
 
     # Executed when the user clicks the stop button
+    # TODO: Stuff still hangs after process joins
     def end_experiment(self): 
         # Set local boolean to false
         self.experiment_in_progress = False
@@ -417,11 +435,22 @@ class MainWindow():
         self.shared_queue_running_experiment.put('END OF EXPERIMENT')
 
         # Cancel the update call
-        self.root.after_cancel(self.update_after_call_id)
+        #self.root.after_cancel(self.update_after_call_id)
+
+        # Flush Queue
+        while not self.shared_queue_primary_camera.empty():
+            self.shared_queue_primary_camera.get()
+
+        while not self.shared_queue_secondary_camera.empty():
+            self.shared_queue_secondary_camera.get()
 
         # Block GUI until processes finish
-        for i in range(3,0,-1):
-            self.processes[i].join()
+        # for i in range(3,-1,-1):
+        #     self.processes[i].join()
+
+        # Block GUI until threads finish
+        # self.thread_for_graph.join()
+        # self.thread_for_timer.join()
 
         # Write Logisitcs out to Log file
         self.file_log = open(self.working_directory + '/LOG.txt', "a+")
@@ -440,46 +469,144 @@ class MainWindow():
         if self.experiment_in_progress:
             self.end_experiment()
         else:
+            self.preview_in_progress = False
+            self.thread_for_preview.join()
             self.root.destroy()
-                                      
+
+
+    # Threading function to display preview images obtained from the shared queue between master, primary_control, and secondary_control
+    def thread_preview(self):
+        while self.preview_in_progress or self.experiment_in_progress:   
+            # ~ UPDATE PREVIEW ~
+            self.pimg = ImageTk.PhotoImage(Image.fromarray(self.shared_queue_primary_camera.get()).resize((439, 350), Image.ANTIALIAS))
+            self.simg = ImageTk.PhotoImage(Image.fromarray(self.shared_queue_secondary_camera.get()).resize((439, 350), Image.ANTIALIAS))
+            self.img_p.configure(image = self.pimg )
+            self.img_p.image = self.pimg # Reference
+            self.img_s.configure(image = self.simg)
+            self.img_s.image = self.simg # Reference   
+            time.sleep(1/self.scan_hz.get())
+
+
+    # Threading function to update timer using shared queue between master and timer_control
+    def thread_timer(self):
+        while self.experiment_in_progress:
+            # ~ UPDATE TIMER ~
+            m, s = divmod(self.shared_total_seconds.value, 60)
+            self.time_label.set('%d minute(s), %d seconds' % (m, s))
+            time.sleep(1)
+
+    # Threading function to update data values based on the data recieved by the shared buffer between master and labjack_control
+    def thread_graph(self):
+        while self.experiment_in_progress:
+            # ~ Parse Labjack Data ~
+            labjack_data = self.shared_queue_voltage_values.get()
+            
+            # Grab Labjack data readings
+            labjack_data.pop(0)
+            self.data_ain0_graph.extend(labjack_data.pop(0))
+            self.data_ain1_graph.extend(labjack_data.pop(0))
+            self.data_ain2_graph.extend(labjack_data.pop(0))
+            self.data_ain3_graph.extend(labjack_data.pop(0))
+            self.data_ain4_graph.extend(labjack_data.pop(0))
+            self.data_ain5_graph.extend(labjack_data.pop(0))
+            self.data_ain6_graph.extend(labjack_data.pop(0))
+            self.data_ain7_graph.extend(labjack_data.pop(0))
+            
+            # ~ UPDATE VOLTAGES ~ 
+            self.var0.set(round(self.data_ain0_graph[0],2))
+            self.var1.set(round(self.data_ain1_graph[0],2))
+            self.var2.set(round(self.data_ain2_graph[0],2))
+            self.var3.set(round(self.data_ain3_graph[0],2))
+            self.var4.set(round(self.data_ain4_graph[0],2))
+            self.var5.set(round(self.data_ain5_graph[0],2))
+            self.var6.set(round(self.data_ain6_graph[0],2))
+            self.var7.set(round(self.data_ain7_graph[0],2))
+            
+            # ~ UPDATE GRAPH ~
+            # Remove older data from the front of the lists
+            self.data_ain0_graph = self.data_ain0_graph[-self.max_items:]
+            self.data_ain1_graph = self.data_ain1_graph[-self.max_items:]
+            self.data_ain2_graph = self.data_ain2_graph[-self.max_items:]
+            self.data_ain3_graph = self.data_ain3_graph[-self.max_items:]
+            self.data_ain4_graph = self.data_ain4_graph[-self.max_items:]
+            self.data_ain5_graph = self.data_ain5_graph[-self.max_items:]
+            self.data_ain6_graph = self.data_ain6_graph[-self.max_items:]
+            self.data_ain7_graph = self.data_ain7_graph[-self.max_items:]
+            
+            # Plot the array with new information on the graph 
+            self.ax1.clear()
+            
+            # Set fixed axis values
+            self.ax1.set_xlim([0,self.hz_to_mil])
+            self.ax1.set_ylim([-.5,5])
+            
+            # Label axes
+            self.ax1.set_xlabel('time (s)')
+            self.ax1.set_ylabel('amplitude')
+            
+            # Plot the new data for each analog
+            self.ax1.plot(self.time_inc, self.data_ain0_graph, label = 'AIN0')
+            self.ax1.plot(self.time_inc, self.data_ain1_graph, label = 'AIN1')
+            self.ax1.plot(self.time_inc, self.data_ain2_graph, label = 'AIN2')
+            self.ax1.plot(self.time_inc, self.data_ain3_graph, label = 'AIN3')
+            self.ax1.plot(self.time_inc, self.data_ain4_graph, label = 'AIN4')
+            self.ax1.plot(self.time_inc, self.data_ain5_graph, label = 'AIN5')
+            self.ax1.plot(self.time_inc, self.data_ain6_graph, label = 'AIN6')
+            self.ax1.plot(self.time_inc, self.data_ain7_graph, label = 'AIN7')
+            
+            # Create a legend for each analog to make dta tracking easier
+            self.ax1.legend()
+        
+            # # Display the new graph
+            # self.canvas.draw() 
+
+            time.sleep(1/self.scan_hz.get())
+        
+    # Function to update the canavas in the main thread 
+    # NOTE: Tkinter has problem if accessed by thread thats not main thread                
+    def update_graph(self):
+        self.canvas.draw()
+        # time.sleep(1/self.scan_hz.get())
+        self.root.after(int(1000), self.update_graph)
+
 
 # MAIN - Creates a startup window and the main GUI. Passes variables from startup window to the main window
 # TODO: Better way to loop experiment calls; 
 def main():
-    while True:
-        # Instance of a SettingsWindow
-        startwindow = SettingsWindow() 
+    # while True:
+    # Instance of a SettingsWindow
+    startwindow = SettingsWindow() 
 
-        # Call the propmt_window function to create the startup window
-        startwindow.build_window()
+    # Call the propmt_window function to create the startup window
+    startwindow.build_window()
 
-        if startwindow.cont:
-            # Store the active directory set by the user into an easy to identify variable: ad
-            ad = startwindow.ad_var.get()
-            # Stores the serial number of the primary camera
-            psn = startwindow.pcamera_var.get()
-            # Stores the file split size
-            fss = startwindow.splitsize_var.get()
-            # Stores the base file name
-            bsfl = startwindow.basefile_var.get()
-            # Get the file path for the working directory 
-            wd = startwindow.wd_var.get()
+    if startwindow.cont:
+        # Store the active directory set by the user into an easy to identify variable: ad
+        ad = startwindow.ad_var.get()
+        # Stores the serial number of the primary camera
+        psn = startwindow.pcamera_var.get()
+        # Stores the file split size
+        fss = startwindow.splitsize_var.get()
+        # Stores the base file name
+        bsfl = startwindow.basefile_var.get()
+        # Get the file path for the working directory 
+        wd = startwindow.wd_var.get()
 
 
-            # Make a call to the UILabCapture class which contains functions for the main GUI window
-            # Properties: None
-            # Functions: init_labjack, update_voltage, build_window
-            # app is a UILabCapture instance
-            app = MainWindow(ad, psn, fss, bsfl, wd) 
+        # Make a call to the UILabCapture class which contains functions for the main GUI window
+        # Properties: None
+        # Functions: init_labjack, update_voltage, build_window
+        # app is a UILabCapture instance
+        app = MainWindow(ad, psn, fss, bsfl, wd) 
 
-            # Setup the filesystem for the files about to be produced by the current expereiment
-            app.create_filesystem()
+        # Setup the filesystem for the files about to be produced by the current expereiment
+        app.create_filesystem()
 
-            #Call the build_window to create the main GUI window and starts the GUI
-            app.build_window()
-            
-        else:
-            return 0
+        #Call the build_window to create the main GUI window and starts the GUI
+        app.build_window()
+        
+    else:
+        return 0
 
 
 # Indicates that the python script will be run directly, and not imported by something else; Include an else to handle importing
