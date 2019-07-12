@@ -1,10 +1,11 @@
-import u3 
-import LabJackPython
-import sys
 from tkinter import messagebox, Tk
+import LabJackPython
 import os
+import sys
+import u3 
 
-    
+
+# Handles initializing the data output file, streaming data from the labjack, recording data in outputfile, and passing the data back to master
 def run(running_experiment_queue, scan_frequency, start_time, voltage_values, file_name):
     # ~ VARIABLES ~
     time_incrementer = 0.000000

@@ -1,11 +1,12 @@
-import sys
+from PIL import Image, ImageTk
+from tkinter import messagebox
+import multiprocessing
 import numpy as np
 import PySpin
-import multiprocessing
-from tkinter import messagebox
-from PIL import Image, ImageTk
+import sys
 
 
+# Handles initialization, recording captured images, frame verification, and passing images back to master via numpy array
 def run(queue, serial_number, running_experiment_queue, camera_fps, preview_queue, missed_frames):
     # Starting frame number
     starting_frame = 0

@@ -1,30 +1,32 @@
+# ~ IMPORTS ~
+from functools import partial
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from PIL import Image, ImageTk
 import datetime
+import Labjack_Control
 import multiprocessing
 import matplotlib.figure as figure
 import numpy as np
 import os
+import Primary_Camera_Control
 import PySpin
 import queue as Queue
-import sys
-import tkinter as tk 
-import u3
-import Labjack_Control
-import Primary_Camera_Control
 import Secondary_Camera_Control
-import Timer_Control
+import sys
 import threading
 import time
+import Timer_Control
+import tkinter as tk 
+import u3
 
 
 # Window to take in user input and apply settings for the experiment
-# Properties: now, ad_var
-# Functions: build_window, update_window, submit_ad
+# Properties: now, isContinuing
+# Functions: build_window, update_window, submit_ad, on_closing
 class SettingsWindow():
     def __init__(self):
         self.now = datetime.datetime.now()
-        self.cont = True
+        self.isContinuing = True
         
     def build_window(self):
         #Initialize a window
@@ -75,35 +77,43 @@ class SettingsWindow():
         self.splitsize_slot = tk.Entry(self.root, textvariable = self.splitsize_var, justify = "left", width = 80) #Entry variable for setting the primary camera's serial number 
         self.splitsize_slot.grid(row = 4, column = 2, padx = 10, pady = 10)
 
-        tk.Button(self.root, text = "Submit", command = self.submit_ad).grid(row = 5, column = 0, padx = 20, pady = 10) #Button that when pressed closes the settings window
+        tk.Button(self.root, text = "Submit", command = partial(self.submit_ad, 'Return')).grid(row = 5, column = 0, padx = 20, pady = 10) #Button that when pressed closes the settings window
 
-        #Function Calls
+        # ~ UPDATE ~
+        # Call to update the window when the user types in new values into the entry fields.
+        self.update_window() 
 
-        self.update_window() #Call to update the window when the user types in new values into the entry fields.
+        # ~ KEY PRESS ~
+        self.root.bind('<Return>', self.submit_ad)
 
+        # ~ MAIN ~
         #Handle interrupt 
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         #Start the window
         self.root.mainloop() 
 
-    #Function that updates 
+    # Function that updates the settings window
     def update_window(self):
         self.ad_var.set(self.wd_var.get() + "/" + self.basefile_var.get() + ".dat")
         self.after_event = self.root.after(5, self.update_window)
         self.root.update()
 
-    #Function to close the window and confirm the active directory being used by the user 
-    def submit_ad(self):
+
+    # Function to close the window and confirm the active directory being used by the user 
+    def submit_ad(self, key):
         self.root.after_cancel(self.after_event)
         self.root.destroy()
 
+    # Function to handle if the user exits from the settings window
     def on_closing(self):
-        self.cont = False
+        self.isContinuing = False
         self.root.destroy()
 
 
 # Runs the main GUI window
+# Properties: filepath, primary_camera-serial_number, file_split_size, filename, working_directory, experiment_in_progress, preview_in_progress
+# Functions: create_filesystem, build_window, begin_experiment, run_experiment, end_experiment, on_close, thread_preview, thread_timer, thread_graph, update_graph
 class MainWindow():
     # Initialization; Takes in an active directory path as a parameter
     def __init__(self, active_directory, primary_serial_number, fss, bsfl, wd):
@@ -273,12 +283,18 @@ class MainWindow():
         # ~ THREADS ~
         #self.root.after(100, func= self.run_experiment)
         self.preview_in_progress = True
-        self.thread_for_preview_1 = threading.Thread(target= self.thread_preview)
-        self.thread_for_preview_2 = threading.Thread(target= self.thread_preview)
-        self.thread_for_preview_3 = threading.Thread(target= self.thread_preview)
+        self.thread_for_preview_1 = threading.Thread(target= self.thread_preview, daemon= True)
+        self.thread_for_preview_2 = threading.Thread(target= self.thread_preview, daemon= True)
+        self.thread_for_preview_3 = threading.Thread(target= self.thread_preview, daemon= True)
+        self.thread_for_preview_4 = threading.Thread(target= self.thread_preview, daemon= True)
+        self.thread_for_preview_5 = threading.Thread(target= self.thread_preview, daemon= True)
+        self.thread_for_preview_6 = threading.Thread(target= self.thread_preview, daemon= True)
         self.thread_for_preview_1.start()
         self.thread_for_preview_2.start()
         self.thread_for_preview_3.start()
+        self.thread_for_preview_4.start()
+        self.thread_for_preview_5.start()
+        self.thread_for_preview_6.start()
 
         # ~ GUI ~
         #Handle interrupt 
@@ -338,8 +354,8 @@ class MainWindow():
         self.processes[0].start() 
         self.processes[3].start() 
 
-        self.thread_for_timer = threading.Thread(target= self.thread_timer)
-        self.thread_for_graph = threading.Thread(target= self.thread_graph)
+        self.thread_for_timer = threading.Thread(target= self.thread_timer, daemon= True)
+        self.thread_for_graph = threading.Thread(target= self.thread_graph, daemon= True)
         self.thread_for_timer.start()
         self.thread_for_graph.start()
 
@@ -430,7 +446,6 @@ class MainWindow():
 
 
     # Executed when the user clicks the stop button
-    # TODO: Stuff still hangs after process joins
     def end_experiment(self): 
         # Set local boolean to false
         self.experiment_in_progress = False
@@ -449,12 +464,28 @@ class MainWindow():
             self.shared_queue_secondary_camera.get()
 
         # Block GUI until processes finish
-        for i in range(3,-1,-1):
-            self.processes[i].join()
+        # for i in range(3,-1,-1):
+        #     self.processes[i].join()
 
-        # Block GUI until threads finish
-        # self.thread_for_graph.join()
+        # # Block GUI until threads finish
+        # print('joining threads')
         # self.thread_for_timer.join()
+        # print('joined timer')
+        # self.thread_for_preview_1.join()
+        # print('joined preview 1')
+        # self.thread_for_preview_2.join()
+        # print('joined timer 2')
+        # self.thread_for_preview_3.join()
+        # print('joined timer 3')
+        # self.thread_for_preview_4.join()
+        # print('joined timer 4')
+        # self.thread_for_preview_5.join()
+        # print('joined timer 5')
+        # self.thread_for_preview_6.join()
+        # print('joined timer 6')
+        # self.thread_for_graph.join()
+        # print('joined graph')
+
 
         # Write Logisitcs out to Log file
         self.file_log = open(self.working_directory + '/LOG.txt', "a+")
@@ -474,21 +505,23 @@ class MainWindow():
             self.end_experiment()
         else:
             self.preview_in_progress = False
-            self.thread_for_preview.join()
             self.root.destroy()
 
 
     # Threading function to display preview images obtained from the shared queue between master, primary_control, and secondary_control
     def thread_preview(self):
-        while self.preview_in_progress or self.experiment_in_progress:   
-            # ~ UPDATE PREVIEW ~
-            self.pimg = ImageTk.PhotoImage(Image.fromarray(self.shared_queue_primary_camera.get()).resize((439, 350), Image.ANTIALIAS))
-            self.simg = ImageTk.PhotoImage(Image.fromarray(self.shared_queue_secondary_camera.get()).resize((439, 350), Image.ANTIALIAS))
-            self.img_p.configure(image = self.pimg )
-            self.img_p.image = self.pimg # Reference
-            self.img_s.configure(image = self.simg)
-            self.img_s.image = self.simg # Reference   
-            time.sleep(1/self.scan_hz.get())
+        while self.preview_in_progress or self.experiment_in_progress:  
+            try: 
+                # ~ UPDATE PREVIEW ~
+                self.pimg = ImageTk.PhotoImage(Image.fromarray(self.shared_queue_primary_camera.get()).resize((439, 350), Image.ANTIALIAS))
+                self.simg = ImageTk.PhotoImage(Image.fromarray(self.shared_queue_secondary_camera.get()).resize((439, 350), Image.ANTIALIAS))
+                self.img_p.configure(image = self.pimg )
+                self.img_p.image = self.pimg # Reference
+                self.img_s.configure(image = self.simg)
+                self.img_s.image = self.simg # Reference   
+                time.sleep(1/self.scan_hz.get())
+            except:
+                pass 
 
 
     # Threading function to update timer using shared queue between master and timer_control
@@ -572,49 +605,49 @@ class MainWindow():
     # NOTE: Tkinter has problem if accessed by thread thats not main thread                
     def update_graph(self):
         self.canvas.draw()
-        # time.sleep(1/self.scan_hz.get())
         self.update_after_call_id = self.root.after(int(1000), self.update_graph)
 
 
 # MAIN - Creates a startup window and the main GUI. Passes variables from startup window to the main window
-# TODO: Better way to loop experiment calls; 
+# Properties: isLooping
 def main():
-    # while True:
-    # Instance of a SettingsWindow
-    startwindow = SettingsWindow() 
+    isLooping = True
+    while isLooping:
+        # Instance of a SettingsWindow
+        startwindow = SettingsWindow() 
 
-    # Call the propmt_window function to create the startup window
-    startwindow.build_window()
+        # Call the propmt_window function to create the startup window
+        startwindow.build_window()
 
-    if startwindow.cont:
-        # Store the active directory set by the user into an easy to identify variable: ad
-        ad = startwindow.ad_var.get()
-        # Stores the serial number of the primary camera
-        psn = startwindow.pcamera_var.get()
-        # Stores the file split size
-        fss = startwindow.splitsize_var.get()
-        # Stores the base file name
-        bsfl = startwindow.basefile_var.get()
-        # Get the file path for the working directory 
-        wd = startwindow.wd_var.get()
-
-
-        # Make a call to the UILabCapture class which contains functions for the main GUI window
-        # Properties: None
-        # Functions: init_labjack, update_voltage, build_window
-        # app is a UILabCapture instance
-        app = MainWindow(ad, psn, fss, bsfl, wd) 
-
-        # Setup the filesystem for the files about to be produced by the current expereiment
-        app.create_filesystem()
-
-        #Call the build_window to create the main GUI window and starts the GUI
-        app.build_window()
-        
-    else:
-        return 0
+        if startwindow.isContinuing:
+            # Store the active directory set by the user into an easy to identify variable: ad
+            ad = startwindow.ad_var.get()
+            # Stores the serial number of the primary camera
+            psn = startwindow.pcamera_var.get()
+            # Stores the file split size
+            fss = startwindow.splitsize_var.get()
+            # Stores the base file name
+            bsfl = startwindow.basefile_var.get()
+            # Get the file path for the working directory 
+            wd = startwindow.wd_var.get()
 
 
-# Indicates that the python script will be run directly, and not imported by something else; Include an else to handle importing
+            # Make a call to the UILabCapture class which contains functions for the main GUI window
+            # Properties: None
+            # Functions: init_labjack, update_voltage, build_window
+            # app is a UILabCapture instance
+            app = MainWindow(ad, psn, fss, bsfl, wd) 
+
+            # Setup the filesystem for the files about to be produced by the current expereiment
+            app.create_filesystem()
+
+            #Call the build_window to create the main GUI window and starts the GUI
+            app.build_window()
+            
+        else:
+            isLooping = False
+
+
+# Indicates that the python script will be run directly, and not imported by something else; Include an else to handle importing if neccessary
 if __name__ == '__main__':
     main()
