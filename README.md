@@ -120,6 +120,7 @@ We use species for versioning. For the versions available, see the [tags on this
 ## Authors
 
 * **Chase Dudas** - *GUI/Scripts* - [Personal GitHub](https://github.com/ChaseD13)
+* Dave Protter - *Torubleshooting* - [Git](https://github.com/dprotter)
 
 ## License
 
@@ -129,4 +130,4 @@ This project is not licensed
 
 * Big thanks to **Kevin Chen** @ FLIR for helping troubleshoot issues with the Blackfly S cameras
 * David Protter w/ Donaldson Lab
-* etc
+  * It’ll be running like a toyota carolla, FOREVER and basically flawlessly
