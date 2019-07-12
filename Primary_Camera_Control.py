@@ -11,6 +11,8 @@ def run(queue, serial_number, running_experiment_queue, camera_fps, preview_queu
     # Starting frame number
     starting_frame = 0
 
+    counter = 0
+
     # Previous frame number
     previous_frame = 0
 
@@ -95,7 +97,9 @@ def run(queue, serial_number, running_experiment_queue, camera_fps, preview_queu
         bimg = image.GetNDArray()
 
         # Pipe/Send image(s) back to the master process
-        queue.put(bimg)
+        counter += 1
+        if counter%4 == 0:
+            queue.put(bimg)
 
         output_file.write('%d\n' % image.GetFrameID()) 
 

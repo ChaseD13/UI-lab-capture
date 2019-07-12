@@ -235,7 +235,7 @@ class MainWindow():
         # Labl and entry for the Blackfly cameras fps
         tk.Label(self.labjack_values, text= 'BlackFly FPS:').pack()
         self.frame_rate_input = tk.IntVar()
-        self.frame_rate_input.set("30")
+        self.frame_rate_input.set("60")
         self.scan_space = tk.Entry(self.labjack_values, textvariable = self.frame_rate_input)
         self.scan_space.pack(padx = 10, pady = 10)
 
@@ -604,7 +604,10 @@ class MainWindow():
     # Function to update the canavas in the main thread 
     # NOTE: Tkinter has problem if accessed by thread thats not main thread                
     def update_graph(self):
-        self.canvas.draw()
+        try:
+            self.canvas.draw()
+        except: 
+            pass
         self.update_after_call_id = self.root.after(int(1000), self.update_graph)
 
 
