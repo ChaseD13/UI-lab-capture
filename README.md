@@ -29,19 +29,22 @@ Run in a windows 10 environment using Anaconda 4.7.5 and python 3.7.3
 
 2. Change directories:
 ```
-cd (File path where repo was cloned or downloaded)\UI-lab-capture\Additional docs
+cd (File path where repo was cloned or downloaded)\UI-lab-capture\Additional docs\Environments
+
+For DONALDSON LAB:
+cd Documents\UI-lab-capture\Additional Docs\Environments
 ```
 
 3. Create the Anaconda Environment:
 ```
-# Replace environmentName with the name you want for the environment
+# IMPORTANT: Replace environmentName with the name you want for the environment
 
-conda env create -f LabCaptureEnvironment.yml -n environmentName
+conda env create -f LabCaptureEnv.yml -n environmentName
 ```
 
 4. Activate the environment:
 ```
-# Replace environmentName with the name from the last step
+# IMPORTANT: Replace environmentName with the name from the last step
 
 conda activate environmentName
 ```
@@ -50,7 +53,7 @@ conda activate environmentName
 
 1. Change directories:
 ```
-cd (current directory)\LabJackPython-2.0.0\LabJackPython-2.0.0
+cd ..\LabJackPython-2.0.0\LabJackPython-2.0.0
 ```
   
 2. Run the setup script
@@ -67,9 +70,9 @@ cd ..\..
 
 1. Change directories:
 ```
-# For my env, version cp37-cp37m was used
+# NOTE: For my env, version cp37-cp37m was used
 
-cd (current directory)\Latest Python Spinnaker\Latest Python Spinnaker\spinnaker_python-1.23.0.27-cpxx-cpxxm-win_amd64
+cd Latest Python Spinnaker\Latest Python Spinnaker\spinnaker_python-1.23.0.27-cpxx-cpxxm-win_amd64
 ```
   
 2. Install PySpin to your associated python version:
@@ -82,9 +85,20 @@ python -m pip install spinnaker_python-1.23.0.27-cpxx-cpxxm-win_amd64.whl
 cd ..\..\..\..
 ```
 
-## Running the tests
+## Running the GUI
 
-Explain how to run the automated tests for this system
+Once back to the main diretory, type
+```
+cd Scripts
+```
+Then, to launch application type
+```
+python Master.py
+```
+The settings window will appear. The following explains each entry.
+```
+Working Direcotry - EDITABLE
+```
 
 ### Break down into end to end tests
 
