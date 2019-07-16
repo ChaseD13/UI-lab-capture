@@ -236,7 +236,7 @@ class UILabCapture():
 
         tk.Label(self.labjack_values, text= 'BlackFly FPS:').pack()
         self.frame_rate_input = tk.IntVar()
-        self.frame_rate_input.set("30")
+        self.frame_rate_input.set("60")
         self.scan_space = tk.Entry(self.labjack_values, textvariable = self.frame_rate_input)
         self.scan_space.pack(padx = 10, pady = 10)
 
@@ -252,7 +252,7 @@ class UILabCapture():
 
         # Total time experied
         self.time_label = tk.IntVar()
-        self.time_label.set('00:00')
+        self.time_label.set('0 minute(s), 0 seconds')
         tk.Label(self.labjack_values, text= 'Experiment Time:').pack(padx = 10, pady = 10)
         tk.Label(self.labjack_values, textvariable= self.time_label).pack(padx = 10, pady = 10)
 
@@ -265,12 +265,12 @@ class UILabCapture():
         self.canvas.draw()
 
         # Call to initialize cameras and avi video
-        self.operate_cameras()
+        #self.operate_cameras()
         self.running_preview = True
-        self.thread_preview_p = threading.Thread(target= self.preview_and_acquire_images, args=(self.image_queue_primary, self.cam_primary, 'p', ), daemon= True)
-        self.thread_preview_s = threading.Thread(target= self.preview_and_acquire_images, args=(self.image_queue_secondary, self.cam_secondary, 's', ), daemon= True)
-        self.thread_preview_p.start()
-        self.thread_preview_s.start()
+        #self.thread_preview_p = threading.Thread(target= self.preview_and_acquire_images, args=(self.image_queue_primary, self.cam_primary, 'p', ), daemon= True)
+        #self.thread_preview_s = threading.Thread(target= self.preview_and_acquire_images, args=(self.image_queue_secondary, self.cam_secondary, 's', ), daemon= True)
+        #self.thread_preview_p.start()
+        #self.thread_preview_s.start()
 
 
         #Handle interrupt 
@@ -411,7 +411,6 @@ class UILabCapture():
 
     # Handles the closing and deinitialization of both cameras and the avi video 
     def deoperate_cameras(self):
-
         # Print the number of dropped frames
         print("Total missed frames(Primary): %d" % self.missed_frames_p)
         print("Total missed frames(Secondary): %d" % self.missed_frames_s)
@@ -437,10 +436,15 @@ class UILabCapture():
         for i in range(self.frame_id_queue_s.qsize()):
             self.file_s.write(str(self.frame_id_queue_s.get()) + '\n')
 
+        # Close frame count files
         self.file_p.close()
         self.file_s.close()
 
-        #Close the recording files
+        # Join the appending threds afte they have finished flushing the queue
+        self.thread2_p.join()
+        self.thread2_s.join()
+
+        # Close the recording files
         self.avi_video_primary.Close()
         self.avi_video_secondary.Close()
 
@@ -455,18 +459,6 @@ class UILabCapture():
                 # Store frames into shared queue for camera
                 q.put(buffer_image)
 
-                # Checks if the frames from the camera are sequential; Increments if the frames are not sequential
-                if letter == 'p':
-                    if int(buffer_image.GetFrameID()) != (self.prev_frame_id_p + 1):
-                        self.missed_frames_p += int(buffer_image.GetFrameID()) - self.prev_frame_id_p
-                    self.prev_frame_id_p = int(buffer_image.GetFrameID())
-                    self.frame_id_queue_p.put(int(buffer_image.GetFrameID()))
-                else:
-                    if int(buffer_image.GetFrameID()) != (self.prev_frame_id_s + 1):
-                        self.missed_frames_s += int(buffer_image.GetFrameID()) - self.prev_frame_id_s
-                    self.prev_frame_id_s = int(buffer_image.GetFrameID())
-                    self.frame_id_queue_s.put(int(buffer_image.GetFrameID()))
-
                 # Release images from the buffers 
                 buffer_image.Release()
 
@@ -476,11 +468,34 @@ class UILabCapture():
 
     # Using the shared queue and while experiment is running, dequeues frames and appends them to the end of the avi recording
     # NOTE: Threaded
-    def append_to_video(self, q, video):
+    def append_to_video(self, q, video, letter):
         while self.running_experiment or not q.empty():
             try:
                 # Grab frames from the primary camera's shared queue
                 queue_image = q.get()
+
+                # Executed the first time the function is called
+                if self.start_of_experiment_p and letter == 'p':
+                    self.prev_frame_id_p = int(queue_image.GetFrameID() - 1)
+                    self.starting_frame_p = int(queue_image.GetFrameID() - 1)
+                    self.start_of_experiment_p = False
+
+                elif self.start_of_experiment_s:
+                    self.prev_frame_id_s = int(queue_image.GetFrameID() - 1)
+                    self.starting_frame_s = int(queue_image.GetFrameID() - 1)
+                    self.start_of_experiment_s = False
+
+                # Checks if the frames from the camera are sequential; Increments if the frames are not sequential
+                if letter == 'p':
+                    if int(queue_image.GetFrameID()) != (self.prev_frame_id_p + 1):
+                        self.missed_frames_p += int(queue_image.GetFrameID()) - self.prev_frame_id_p
+                    self.prev_frame_id_p = int(queue_image.GetFrameID())
+                    self.frame_id_queue_p.put(int(queue_image.GetFrameID()))
+                else:
+                    if int(queue_image.GetFrameID()) != (self.prev_frame_id_s + 1):
+                        self.missed_frames_s += int(queue_image.GetFrameID()) - self.prev_frame_id_s
+                    self.prev_frame_id_s = int(queue_image.GetFrameID())
+                    self.frame_id_queue_s.put(int(queue_image.GetFrameID()))
 
                 # Append frames to the camera's avi video
                 video.Append(queue_image)
@@ -503,6 +518,9 @@ class UILabCapture():
         # Update counter for the graph to keep measurements in time of one second
         self.curtime = 0.000000
 
+        # Updates with the timer function. Keeps track of total seconds elapsed during experiment. Negative to offset the second it takes to aquire the first second of data
+        self.total_seconds = 0
+
         # Set the standard datetime format
         self.datetimeFormat = '%Y-%m-%d %I:%M:%S.%f'
 
@@ -514,7 +532,7 @@ class UILabCapture():
 
         # Max items in Labjack values list = Twice the number of events per second
         #self.max_items = 2 * self.scan_hz.get()
-        self.max_items = self.scan_hz.get()
+        self.max_items = self.scan_hz.get() * self.hz_to_mil
 
         # Analog input lists from the Labjack, initalized with 2x set hz rate of 0's 
         self.data_ain0 = [0] * self.max_items
@@ -528,7 +546,7 @@ class UILabCapture():
 
         # Set an array to hold time incriments
         self.time_inc = []
-        for x in np.arange(0.0, 1.0, 1/self.max_items):
+        for x in np.arange(0.0, self.hz_to_mil, self.hz_to_mil/self.max_items):
             self.time_inc.append(x)
 
         # Create a subplot in the canvas f
@@ -540,7 +558,7 @@ class UILabCapture():
         # Call to initalize the Labjack
         self.init_labjack() 
 
-        #self.operate_cameras()
+        self.operate_cameras()
 
         # Create the file for writing data out to disk
 
@@ -569,45 +587,46 @@ class UILabCapture():
         
         #Call to update function to begin the animation of the GUI
         self.update_gui()
-
+        #self.root.after(self.hz_to_mil, self.animate_with_stream)
+                
         # Start processes to begin the capturing from the Blackfly camera
-        #self.thread1_p = threading.Thread(target= self.acquire_frames, args=(self.image_queue_primary,  self.cam_primary, 'p', ), daemon= True)
-        self.thread2_p = threading.Thread(target= self.append_to_video, args=(self.image_queue_primary, self.avi_video_primary, ), daemon= True)
-        #self.thread1_s = threading.Thread(target= self.acquire_frames, args=(self.image_queue_secondary, self.cam_secondary, 's', ), daemon= True)
-        self.thread2_s = threading.Thread(target= self.append_to_video, args=(self.image_queue_secondary, self.avi_video_secondary, ), daemon= True)
-        #self.thread1_p.start()
+        self.thread1_p = threading.Thread(target= self.acquire_frames, args=(self.image_queue_primary,  self.cam_primary, 'p', ), daemon= True)
+        self.thread2_p = threading.Thread(target= self.append_to_video, args=(self.image_queue_primary, self.avi_video_primary, 'p', ), daemon= True)
+        self.thread1_s = threading.Thread(target= self.acquire_frames, args=(self.image_queue_secondary, self.cam_secondary, 's', ), daemon= True)
+        self.thread2_s = threading.Thread(target= self.append_to_video, args=(self.image_queue_secondary, self.avi_video_secondary, 's', ), daemon= True)
+        self.thread1_p.start()
         self.thread2_p.start()
-        #self.thread1_s.start()
+        self.thread1_s.start()
         self.thread2_s.start()
 
         # Start Timer
-        self.timer_thread = threading.Thread(target= self.timer, args=(self.start_time, ), daemon= True)
+        self.timer_thread = threading.Thread(target= self.timer, daemon= True)
         self.timer_thread.start()
+
+        #self.thread_voltage = threading.Thread(target= self.update_voltage, daemon= True)
+        #self.thread_voltage.start()
+
+        #self.thread_animate = threading.Thread(target= self.animate_with_stream, daemon= True)
+        #self.thread_animate.start()
 
 
     # A function to stop the current experiment and revert the GUI back to a clean state
     def stop_gui(self):
         # The experiment is no longer running
-        self.running_preview = True
+        self.running_preview = False
         self.running_experiment = False
 
         # Call function to handle closing of the cameras and video
         self.deoperate_cameras()
+
+        m, s = divmod(self.total_seconds, 60)
+        print('Experiment ran for: %d minute(s), %d seconds' % (m, s))
 
         # Stops the call to update being made in update_gui
         try:
             self.root.after_cancel(self.update_after_call_id) 
         except Exception as ex:
             print(ex)
-
-        self.var0.set("0") # Resets voltage being read from the labjack at FIO0
-        self.var1.set("0") # Resets voltage being read from the labjack at FIO1
-        self.var2.set("0") # Resets voltage being read from the labjack at FIO2
-        self.var3.set("0") # Resets voltage being read from the labjack at FIO3
-        self.var4.set("0") # Resets voltage being read from the labjack at FIO4
-        self.var5.set("0") # Resets voltage being read from the labjack at FIO5
-        self.var6.set("0") # Resets voltage being read from the labjack at FIO6
-        self.var7.set("0") # Resets voltage being read from the labjack at FIO7
 
         # Removes the subplot from the canvas, creates a clean subplot for looks
         self.ax1.clear()
@@ -622,27 +641,26 @@ class UILabCapture():
         # Closes the data file
         self.f.close()
 
-        # Resets the scan hz entry
-        self.scan_hz.set("Labjack Scan rate...")
+        # # Resets the scan hz entry
+        # self.scan_hz.set("Labjack Scan rate...")
 
-        # Resets the fps entry
-        self.frame_rate_input.set("Camera FPS...")
+        # # Resets the fps entry
+        # self.frame_rate_input.set("Camera FPS...")
 
-        self.image_queue_primary = Queue.Queue() # Shared queue between threads to save and record frames from the primary camera
-        self.image_queue_secondary = Queue.Queue() # Shared queue between threads to save and record frames from the secondary camera
-        self.missed_frames_p = 0 # (Primary) Counter for the number of missed frames during the stream
-        self.prev_frame_id_p = -1 # (Primary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
-        self.missed_frames_s = 0 # (Secondary) Counter for the number of missed frames during the stream
-        self.prev_frame_id_s = -1 # (Secondary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
-        self.frame_id_queue_p = Queue.Queue()
-        self.frame_id_queue_s = Queue.Queue()
+        # self.image_queue_primary = Queue.Queue() # Shared queue between threads to save and record frames from the primary camera
+        # self.image_queue_secondary = Queue.Queue() # Shared queue between threads to save and record frames from the secondary camera
+        # self.missed_frames_p = 0 # (Primary) Counter for the number of missed frames during the stream
+        # self.prev_frame_id_p = -1 # (Primary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
+        # self.missed_frames_s = 0 # (Secondary) Counter for the number of missed frames during the stream
+        # self.prev_frame_id_s = -1 # (Secondary) Holds the previous FrameID; -1 b/c FrameID's begin @ 0
+        # self.frame_id_queue_p = Queue.Queue()
+        # self.frame_id_queue_s = Queue.Queue()
         
         self.on_closing()
 
 
     # A function to handle closing the hardware when the window is closed
     def shutdown_gui(self):
-        self.running_preview = False
 
         # Stop acquisition
         self.cam_secondary.EndAcquisition()
@@ -699,7 +717,6 @@ class UILabCapture():
                 new_data_ain5.extend(r['AIN5'])
                 new_data_ain6.extend(r['AIN6'])
                 new_data_ain7.extend(r['AIN7'])
-
                 
             if len(new_data_ain0) >= self.scan_hz.get():
                 break
@@ -711,14 +728,6 @@ class UILabCapture():
         self.data = [times, new_data_ain0, new_data_ain1, new_data_ain2, new_data_ain3, new_data_ain4, new_data_ain5,new_data_ain6, new_data_ain7]
 
         # Write the values out to file
-        # self.write_to_file('AIN0', new_data_ain0)
-        # self.write_to_file('AIN1', new_data_ain1)
-        # self.write_to_file('AIN2', new_data_ain2)
-        # self.write_to_file('AIN3', new_data_ain3)
-        # self.write_to_file('AIN4', new_data_ain4)
-        # self.write_to_file('AIN5', new_data_ain5)
-        # self.write_to_file('AIN6', new_data_ain6)
-        # self.write_to_file('AIN7', new_data_ain7)
         self.write_to_file(self.data)
 
         # Extends on the new data into data
@@ -745,7 +754,7 @@ class UILabCapture():
         self.ax1.clear()
 
         # Set fixed axis values
-        self.ax1.set_xlim([0,1])
+        self.ax1.set_xlim([0,self.hz_to_mil])
         self.ax1.set_ylim([-.5,5])
 
         # Label axes
@@ -769,7 +778,7 @@ class UILabCapture():
         self.canvas.draw()
     
 
-    # Handles an interrupt made during an experiment
+    # Handles an interrupt made during an experiment  
     def on_closing(self):
         if self.running_experiment:
             self.running_experiment = False
@@ -781,11 +790,11 @@ class UILabCapture():
             
 
     # Handles incremeting of the timer
-    # TODO: Figure out how to parse timedelta
-    def timer(self, start_time):
+    def timer(self):
         while self.running_experiment:
-            #timer = str(datetime.datetime.now() - self.start_time)
-            self.time_label.set(datetime.datetime.now() - self.start_time)
+            self.total_seconds += 1
+            m, s = divmod(self.total_seconds, 60)
+            self.time_label.set('%d minute(s), %d seconds' % (m, s))
             time.sleep(1)
 
 
@@ -796,7 +805,7 @@ class UILabCapture():
         while self.running_preview or self.running_experiment:
             try:
                 # Grab frames from camera's buffer
-                buffer_image = cam.GetNextImage()
+                buffer_image = cam.GetNextImage() 
                 # Converts the grabbed image from ram into an Numpy array
                 bimg = buffer_image.GetNDArray()
                 # Transforms the numpy array into a PIL image
@@ -811,33 +820,10 @@ class UILabCapture():
                     self.img_p.configure(image= tkimage)
                 else:
                     self.img_s.configure(image= tkimage)
-
                 # Executed when the user hits the start button
                 if self.running_experiment:
-                    # Executed the first time the function is called
-                    if self.start_of_experiment_p and letter == 'p':
-                        self.prev_frame_id_p = int(buffer_image.GetFrameID() - 1)
-                        self.starting_frame_p = int(buffer_image.GetFrameID() - 1)
-                        self.start_of_experiment_p = False
-                    elif self.start_of_experiment_s:
-                        self.prev_frame_id_s = int(buffer_image.GetFrameID() - 1)
-                        self.starting_frame_s = int(buffer_image.GetFrameID() - 1)
-                        self.start_of_experiment_s = False
-
                     # Store frames into shared queue for camera
                     q.put(buffer_image)
-
-                    # Checks if the frames from the camera are sequential; Increments if the frames are not sequential
-                    if letter == 'p':
-                        if int(buffer_image.GetFrameID()) != (self.prev_frame_id_p + 1):
-                            self.missed_frames_p += int(buffer_image.GetFrameID()) - self.prev_frame_id_p
-                        self.prev_frame_id_p = int(buffer_image.GetFrameID())
-                        self.frame_id_queue_p.put(int(buffer_image.GetFrameID()))
-                    else:
-                        if int(buffer_image.GetFrameID()) != (self.prev_frame_id_s + 1):
-                            self.missed_frames_s += int(buffer_image.GetFrameID()) - self.prev_frame_id_s
-                        self.prev_frame_id_s = int(buffer_image.GetFrameID())
-                        self.frame_id_queue_s.put(int(buffer_image.GetFrameID()))
 
                 # Release images from the buffers 
                 buffer_image.Release()
@@ -845,11 +831,8 @@ class UILabCapture():
             except Exception as ex:
                 print(ex)
 
-            self.root.update()
-
 
     #Used to create and format the filesystem using information provided from the settings window
-    # TODO: Create append to the LOG file with the last location of where information was saved
     def create_filesystem(self):
         try:
             #Create a folder to hold all aquired data
