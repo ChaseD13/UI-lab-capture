@@ -95,36 +95,43 @@ Then, to launch application type
 ```
 python Master.py
 ```
-The settings window will appear. The following explains each entry.
+The settings window will appear. The following explains each entry in the window.
 ```
-Working Direcotry - EDITABLE
+Working Direcotry - EDITABLE Takes desired file path where experiment files will be saved.
+                    ex. "C://Users/Protter/Documents/UI-lab-capture/Experiments/Experiment_1_60fps"
+                    
+Base File Name - EDITABLE Takes desired file name for the data file being outputed to by the GUI
+                 ex. "Labjack_data"
+                 
+Active Directory - READ-ONLY Displays where the data output file will be saved. Used as a way to verify that the infomation inputed looks correct
+
+Primary Camera Serial Number - EDITABLE Takes the serial number for the 'primary' Blackfly S Camera
 ```
-
-### Break down into end to end tests
-
-Explain what these tests test and why
-
+Hit Submit once all of the entries have been filled in. The settings window will close and the main GUI will display. The following explains each entry in the window.
 ```
-Give an example
-```
+Labjack Scan Rate - EDITABLE Determines the scan frequency for the Labjack U3-LV
 
-### And coding style tests
-
-Explain what these tests test and why
-
+BlackFly FPS - READ-ONLY Determines the FPS for the video recording
 ```
-Give an example
-```
+Once you are ready to start the experiment, hit the start button towards the bottom of the window.
+
+To stop the experiment, hit the stop button towards the bottom of the window. This will redirect you to the settings window. Here you can either start another experiment by repeating these steps or quit to desktop by closing the settings window.  
 
 ## Deployment
 
-Add additional notes about how to deploy this on a live system
+Additional notes about how to deploy this on a live system
+```
+Python 3.7.3
+conda 4.7.5
+```
 
 ## Built With
 
-* [Dropwizard](http://www.dropwizard.io/1.0.2/docs/) - The web framework used
-* [Maven](https://maven.apache.org/) - Dependency Management
-* [ROME](https://rometools.github.io/rome/) - Used to generate RSS Feeds
+* [Anaconda](https://www.anaconda.com/) - Platform
+* [Visual Studio](https://visualstudio.microsoft.com/) - IDE
+* [Python](https://www.python.org/) - Code Language 
+* [PySpin](https://www.flir.com/products/spinnaker-sdk/) - API for **USB3 Blackfly S Camera**
+* [Labjack](https://labjack.com/support/software/api) - API for **Labjack U3-LV**
 
 
 ## Versioning
