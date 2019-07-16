@@ -43,12 +43,12 @@ class SettingsWindow():
         self.ad_var = tk.StringVar() #Holds the active directory string.
 
         self.wd_var = tk.StringVar() #Holds the working directory ex. "C:\Users\Behavior Scoring\Desktop" or "C://Users/Behavior Scoring/Desktop"
-        self.wd_var.set('C://Users/Behavior Scoring/Desktop/UI-lab-capture')
+        self.wd_var.set('C://Users/Protter/Documents/UI-lab-capture/Experiments/')
 
         self.basefile_var = tk.StringVar() #Holds the basefile name ex. Test.txt
         
         self.pcamera_var = tk.IntVar() #Holds the serial number for the primary labjack camera
-        self.pcamera_var.set(19061331)
+        #self.pcamera_var.set()
 
         self.splitsize_var = tk.IntVar()
 
@@ -58,7 +58,7 @@ class SettingsWindow():
         tk.Label(self.root, text = "Base File Name: ").grid(row = 1, column = 0, padx = 10, pady = 10)
         tk.Label(self.root, text = "Active Directory: ").grid(row = 2, column = 0, padx = 10, pady = 10)
         tk.Label(self. root, text = "Primary Camera Serial Number: ").grid(row = 3, column = 0, padx = 10, pady = 10) 
-        tk.Label(self.root, text = "File Split Size: ").grid(row = 4, column = 0, padx = 10, pady = 10)
+        #tk.Label(self.root, text = "File Split Size: ").grid(row = 4, column = 0, padx = 10, pady = 10)
 
 
         #Entry boxes
@@ -74,10 +74,10 @@ class SettingsWindow():
         self.primary_slot = tk.Entry(self.root, textvariable = self.pcamera_var, justify = "left", width = 80) #Entry variable for setting the primary camera's serial number 
         self.primary_slot.grid(row = 3, column = 2, padx = 10, pady = 10)
 
-        self.splitsize_slot = tk.Entry(self.root, textvariable = self.splitsize_var, justify = "left", width = 80) #Entry variable for setting the primary camera's serial number 
-        self.splitsize_slot.grid(row = 4, column = 2, padx = 10, pady = 10)
+        #self.splitsize_slot = tk.Entry(self.root, textvariable = self.splitsize_var, justify = "left", width = 80) #Entry variable for setting the primary camera's serial number 
+        #self.splitsize_slot.grid(row = 4, column = 2, padx = 10, pady = 10)
 
-        tk.Button(self.root, text = "Submit", command = partial(self.submit_ad, 'Return')).grid(row = 5, column = 0, padx = 20, pady = 10) #Button that when pressed closes the settings window
+        tk.Button(self.root, text = "Submit", command = partial(self.submit_ad, 'Return')).grid(row = 4, column = 0, padx = 20, pady = 10) #Button that when pressed closes the settings window
 
         # ~ UPDATE ~
         # Call to update the window when the user types in new values into the entry fields.
@@ -306,14 +306,21 @@ class MainWindow():
 
     # Executed when the user clicks the start button
     def begin_experiment(self):
+        
+
         # ~ VARIABLES ~
+        # Not running preview
         self.preview_in_progress = False
+
+        # Running experiment
+        self.experiment_in_progress = True
 
         # Start time of the experiment
         self.shared_start_time = datetime.datetime.now()
 
-        # Running experiment
-        self.experiment_in_progress = True
+        # Begin timer
+        self.thread_for_timer = threading.Thread(target= self.thread_timer, daemon= True)
+        self.thread_for_timer.start()
         
         # Signals cameras to start recording
         self.shared_queue_running_preview.put("Now Running Experiment")
@@ -354,10 +361,10 @@ class MainWindow():
         self.processes[0].start() 
         self.processes[3].start() 
 
-        self.thread_for_timer = threading.Thread(target= self.thread_timer, daemon= True)
-        self.thread_for_graph = threading.Thread(target= self.thread_graph, daemon= True)
-        self.thread_for_timer.start()
-        self.thread_for_graph.start()
+        self.thread_for_graph_1 = threading.Thread(target= self.thread_graph, daemon= True)
+        self.thread_for_graph_2 = threading.Thread(target= self.thread_graph, daemon= True)
+        self.thread_for_graph_1.start()
+        self.thread_for_graph_2.start()
 
         self.update_after_call_id = self.root.after(int(1000), self.update_graph)
 
@@ -463,29 +470,6 @@ class MainWindow():
         while not self.shared_queue_secondary_camera.empty():
             self.shared_queue_secondary_camera.get()
 
-        # Block GUI until processes finish
-        # for i in range(3,-1,-1):
-        #     self.processes[i].join()
-
-        # # Block GUI until threads finish
-        # print('joining threads')
-        # self.thread_for_timer.join()
-        # print('joined timer')
-        # self.thread_for_preview_1.join()
-        # print('joined preview 1')
-        # self.thread_for_preview_2.join()
-        # print('joined timer 2')
-        # self.thread_for_preview_3.join()
-        # print('joined timer 3')
-        # self.thread_for_preview_4.join()
-        # print('joined timer 4')
-        # self.thread_for_preview_5.join()
-        # print('joined timer 5')
-        # self.thread_for_preview_6.join()
-        # print('joined timer 6')
-        # self.thread_for_graph.join()
-        # print('joined graph')
-
 
         # Write Logisitcs out to Log file
         self.file_log = open(self.working_directory + '/LOG.txt', "a+")
@@ -536,69 +520,71 @@ class MainWindow():
     # Threading function to update data values based on the data recieved by the shared buffer between master and labjack_control
     def thread_graph(self):
         while self.experiment_in_progress:
-            # ~ Parse Labjack Data ~
-            labjack_data = self.shared_queue_voltage_values.get()
-            
-            # Grab Labjack data readings
-            labjack_data.pop(0)
-            self.data_ain0_graph.extend(labjack_data.pop(0))
-            self.data_ain1_graph.extend(labjack_data.pop(0))
-            self.data_ain2_graph.extend(labjack_data.pop(0))
-            self.data_ain3_graph.extend(labjack_data.pop(0))
-            self.data_ain4_graph.extend(labjack_data.pop(0))
-            self.data_ain5_graph.extend(labjack_data.pop(0))
-            self.data_ain6_graph.extend(labjack_data.pop(0))
-            self.data_ain7_graph.extend(labjack_data.pop(0))
-            
-            # ~ UPDATE VOLTAGES ~ 
-            self.var0.set(round(self.data_ain0_graph[0],2))
-            self.var1.set(round(self.data_ain1_graph[0],2))
-            self.var2.set(round(self.data_ain2_graph[0],2))
-            self.var3.set(round(self.data_ain3_graph[0],2))
-            self.var4.set(round(self.data_ain4_graph[0],2))
-            self.var5.set(round(self.data_ain5_graph[0],2))
-            self.var6.set(round(self.data_ain6_graph[0],2))
-            self.var7.set(round(self.data_ain7_graph[0],2))
-            
-            # ~ UPDATE GRAPH ~
-            # Remove older data from the front of the lists
-            self.data_ain0_graph = self.data_ain0_graph[-self.max_items:]
-            self.data_ain1_graph = self.data_ain1_graph[-self.max_items:]
-            self.data_ain2_graph = self.data_ain2_graph[-self.max_items:]
-            self.data_ain3_graph = self.data_ain3_graph[-self.max_items:]
-            self.data_ain4_graph = self.data_ain4_graph[-self.max_items:]
-            self.data_ain5_graph = self.data_ain5_graph[-self.max_items:]
-            self.data_ain6_graph = self.data_ain6_graph[-self.max_items:]
-            self.data_ain7_graph = self.data_ain7_graph[-self.max_items:]
-            
-            # Plot the array with new information on the graph 
-            self.ax1.clear()
-            
-            # Set fixed axis values
-            self.ax1.set_xlim([0,self.hz_to_mil])
-            self.ax1.set_ylim([-.5,5])
-            
-            # Label axes
-            self.ax1.set_xlabel('time (s)')
-            self.ax1.set_ylabel('amplitude')
-            
-            # Plot the new data for each analog
-            self.ax1.plot(self.time_inc, self.data_ain0_graph, label = 'AIN0')
-            self.ax1.plot(self.time_inc, self.data_ain1_graph, label = 'AIN1')
-            self.ax1.plot(self.time_inc, self.data_ain2_graph, label = 'AIN2')
-            self.ax1.plot(self.time_inc, self.data_ain3_graph, label = 'AIN3')
-            self.ax1.plot(self.time_inc, self.data_ain4_graph, label = 'AIN4')
-            self.ax1.plot(self.time_inc, self.data_ain5_graph, label = 'AIN5')
-            self.ax1.plot(self.time_inc, self.data_ain6_graph, label = 'AIN6')
-            self.ax1.plot(self.time_inc, self.data_ain7_graph, label = 'AIN7')
-            
-            # Create a legend for each analog to make dta tracking easier
-            self.ax1.legend()
-        
+            try: 
+                # ~ Parse Labjack Data ~
+                labjack_data = self.shared_queue_voltage_values.get()
+                    
+                # Grab Labjack data readings
+                labjack_data.pop(0)
+                self.data_ain0_graph.extend(labjack_data.pop(0))
+                self.data_ain1_graph.extend(labjack_data.pop(0))
+                self.data_ain2_graph.extend(labjack_data.pop(0))
+                self.data_ain3_graph.extend(labjack_data.pop(0))
+                self.data_ain4_graph.extend(labjack_data.pop(0))
+                self.data_ain5_graph.extend(labjack_data.pop(0))
+                self.data_ain6_graph.extend(labjack_data.pop(0))
+                self.data_ain7_graph.extend(labjack_data.pop(0))
+                    
+                # ~ UPDATE VOLTAGES ~ 
+                self.var0.set(round(self.data_ain0_graph[0],2))
+                self.var1.set(round(self.data_ain1_graph[0],2))
+                self.var2.set(round(self.data_ain2_graph[0],2))
+                self.var3.set(round(self.data_ain3_graph[0],2))
+                self.var4.set(round(self.data_ain4_graph[0],2))
+                self.var5.set(round(self.data_ain5_graph[0],2))
+                self.var6.set(round(self.data_ain6_graph[0],2))
+                self.var7.set(round(self.data_ain7_graph[0],2))
+                    
+                # ~ UPDATE GRAPH ~
+                # Remove older data from the front of the lists
+                self.data_ain0_graph = self.data_ain0_graph[-self.max_items:]
+                self.data_ain1_graph = self.data_ain1_graph[-self.max_items:]
+                self.data_ain2_graph = self.data_ain2_graph[-self.max_items:]
+                self.data_ain3_graph = self.data_ain3_graph[-self.max_items:]
+                self.data_ain4_graph = self.data_ain4_graph[-self.max_items:]
+                self.data_ain5_graph = self.data_ain5_graph[-self.max_items:]
+                self.data_ain6_graph = self.data_ain6_graph[-self.max_items:]
+                self.data_ain7_graph = self.data_ain7_graph[-self.max_items:]
+
+                # Plot the array with new information on the graph 
+                self.ax1.clear()
+                
+                # Set fixed axis values
+                self.ax1.set_xlim([0,self.hz_to_mil])
+                self.ax1.set_ylim([-.5,5])
+                
+                # Label axes
+                self.ax1.set_xlabel('time (s)')
+                self.ax1.set_ylabel('amplitude')
+                
+                # Plot the new data for each analog
+                self.ax1.plot(self.time_inc, self.data_ain0_graph, label = 'AIN0')
+                self.ax1.plot(self.time_inc, self.data_ain1_graph, label = 'AIN1')
+                self.ax1.plot(self.time_inc, self.data_ain2_graph, label = 'AIN2')
+                self.ax1.plot(self.time_inc, self.data_ain3_graph, label = 'AIN3')
+                self.ax1.plot(self.time_inc, self.data_ain4_graph, label = 'AIN4')
+                self.ax1.plot(self.time_inc, self.data_ain5_graph, label = 'AIN5')
+                self.ax1.plot(self.time_inc, self.data_ain6_graph, label = 'AIN6')
+                self.ax1.plot(self.time_inc, self.data_ain7_graph, label = 'AIN7')
+                
+                # Create a legend for each analog to make dta tracking easier
+                self.ax1.legend()
+            except: 
+                pass
             # # Display the new graph
             # self.canvas.draw() 
 
-            time.sleep(1/self.scan_hz.get())
+            # time.sleep(1/self.scan_hz.get())
 
 
     # Function to update the canavas in the main thread 
